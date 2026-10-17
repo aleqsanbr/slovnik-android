@@ -830,6 +830,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean notifAllowed() { return Notifications.allowed(MainActivity.this); }
 
+        /** Days the user answered a card right in the notification shade — they count for the streak too. */
+        @JavascriptInterface
+        public String practiceDays() {
+            return new org.json.JSONArray(Notifications.prefs(MainActivity.this).getStringSet("days", new java.util.HashSet<>())).toString();
+        }
+
         @JavascriptInterface
         public void testNotification(String kind) { runOnUiThread(() -> testNotif(kind)); }
 

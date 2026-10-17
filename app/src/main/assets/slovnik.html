@@ -220,6 +220,21 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 .toast{animation:toastIn .25s var(--ease) both}
 .card{transition:box-shadow .25s}
 
+.streak-chip{display:inline-flex;align-items:center;gap:2px;margin-right:8px;color:var(--muted);vertical-align:-3px}
+.streak-chip svg{width:16px;height:16px;fill:currentColor}
+.streak-chip.lit{color:var(--accent)}
+.streak{background:var(--surface);border-radius:22px;padding:14px 16px;display:grid;gap:12px;margin-bottom:6px}
+.streak-head{display:flex;align-items:center;gap:12px}
+.streak-head .grow{display:grid;gap:2px}
+.streak-flame{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--chip);color:var(--muted);flex:none}
+.streak.lit .streak-flame{background:var(--accent-soft);color:var(--accent);animation:pop .5s var(--spring) both}
+.streak-flame svg{width:24px;height:24px;fill:currentColor}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:.72rem;color:var(--muted)}
+.week span{display:grid;justify-items:center;gap:4px}
+.week i{width:22px;height:22px;border-radius:50%;background:var(--chip);display:block}
+.week .on i{background:var(--accent)}
+.week .today{color:var(--ink);font-weight:600}
+.week .today i{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent-soft)}
 .item.picked{background:var(--accent-soft)}
 .check{width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);box-sizing:border-box;display:block}
 .item.picked .check{border-color:var(--accent);background:var(--accent) radial-gradient(circle,var(--accent-ink) 0 3px,transparent 3.5px)}
@@ -242,7 +257,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
   <header class="top">
     <div class="brand">Словник <i id="hdr-set"></i></div>
     <div class="hdr-right">
-      <div class="counts"><span id="hdr-counts">—</span><br><span class="sync off" id="hdr-sync">на этом устройстве</span></div>
+      <div class="counts"><span class="streak-chip" id="hdr-streak" hidden></span><span id="hdr-counts">—</span><br><span class="sync off" id="hdr-sync">на этом устройстве</span></div>
     </div>
   </header>
   <main id="view"></main>
@@ -433,6 +448,7 @@ function flushOutbox(){
 window.addEventListener("online", () => flushOutbox());
 document.addEventListener("visibilitychange", () => {
   if(document.visibilityState !== "visible" || !NATIVE) return;
+  mergeNativeDays(); renderHeader();
   if(OFFLINE){ if(!S.session){ loadOfflineSnapshot(); refresh(true); } }
   else if(S.db && nativePending()){ mergeNativePending(); reportSnapshot(); refresh(true); }
 });
@@ -463,7 +479,7 @@ async function connectCloud(){
     if(!S.uid){ try{ S.uid = await S.cloud.user.id(); }catch(e){} }
     if(!S.uid) return;
     S.db = S.cloud.db;
-    try{ await startSync(); mergeNativePending(); reportSnapshot(); nativeCall("jsLog", "облако подключено: " + S.words.size + " слов"); }
+    try{ await startSync(); mergeNativePending(); mergeNativeDays(); reportSnapshot(); nativeCall("jsLog", "облако подключено: " + S.words.size + " слов"); }
     catch(e){
       S.db = null; S.mode = "local";
       if(!S.offlineToast){ S.offlineToast = true; toast("Нет связи с облаком. Работаю на этом устройстве и синхронизирую, когда появится сеть."); }
@@ -599,8 +615,35 @@ function buildSession(){
   for(let i = q.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [q[i],q[j]] = [q[j],q[i]]; }
   return q;
 }
+/* ---------- streak ---------- */
+const dayKey = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const todayKey = () => dayKey(new Date());
+function shiftDay(d, n){ const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function practiceDays(){ return new Set(Array.isArray(S.meta.days) ? S.meta.days : []); }
+function streakInfo(){
+  const days = practiceDays(), now = new Date();
+  const doneToday = days.has(dayKey(now));
+  let cur = 0, d = doneToday ? now : shiftDay(now, -1);
+  while(days.has(dayKey(d))){ cur++; d = shiftDay(d, -1); }
+  let best = 0, run = 0, prev = null;
+  [...days].sort().forEach(k => {
+    const t = new Date(k + "T12:00:00");
+    run = prev && Math.round((t - prev) / DAY) === 1 ? run + 1 : 1;
+    best = Math.max(best, run); prev = t;
+  });
+  const week = Array.from({ length: 7 }, (_, i) => { const x = shiftDay(now, i - 6); return { key: dayKey(x), on: days.has(dayKey(x)), today: i === 6, label: ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][x.getDay()] }; });
+  return { cur, best: Math.max(best, cur), doneToday, week };
+}
+const FLAME = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c.6 3.2-1.2 5-2.7 6.6C7.8 10.7 6.5 12.3 6.5 15a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.1-5.2-.3 1.4-1 2.4-2 2.9.3-3.6-.6-7.4-1.4-10.2z"/></svg>';
+/* days answered right in the notification shade count too */
+function mergeNativeDays(){
+  let extra = []; try{ extra = JSON.parse(nativeCall("practiceDays") || "[]"); }catch(e){}
+  const days = practiceDays(); let added = false;
+  extra.forEach(k => { if(/^\d{4}-\d{2}-\d{2}$/.test(k) && !days.has(k)){ days.add(k); added = true; } });
+  if(added){ S.meta.days = [...days].sort().slice(-90); persistMeta(); refresh(true); }
+}
 function markPracticeDay(){
-  const d = new Date(), today = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  const today = todayKey();
   const days = Array.isArray(S.meta.days) ? S.meta.days : [];
   if(days.includes(today)) return;
   S.meta.days = [...days, today].slice(-90);
@@ -625,6 +668,11 @@ function renderHeader(){
   const all = [...S.words.values()], now = Date.now(), dir = S.meta.dir;
   const dueN = poolFor(dir, S.meta.revSet).filter(w => isDue(w, dir, now)).length;
   $("#hdr-counts").textContent = plural(all.length, "слово", "слова", "слов") + " · " + dueN + " к повтору";
+  const st = streakInfo(), chip = $("#hdr-streak");
+  chip.hidden = st.cur < 1;
+  chip.className = "streak-chip" + (st.doneToday ? " lit" : "");
+  chip.innerHTML = FLAME + "<b>" + st.cur + "</b>";
+  chip.title = st.doneToday ? "Серия: " + plural(st.cur, "день", "дня", "дней") : "Серия " + plural(st.cur, "день", "дня", "дней") + " — сегодня ещё не занимался";
   const s = $("#hdr-sync");
   const pending = obCount();
   if(OFFLINE){ const n = nativePending(); s.textContent = "без сети" + (n ? " · " + plural(n, "изменение сохранено", "изменения сохранено", "изменений сохранено") : ""); s.className = "sync off"; }
@@ -680,6 +728,15 @@ function viewReview(v){
     ${OFFLINE ? `<div class="panel" style="margin-bottom:6px;background:var(--accent-soft);color:var(--accent-soft-ink)">
       <span>${S.noSnapshot ? "<b>Нет сети, а копии словаря на телефоне пока нет.</b> Открой приложение один раз с интернетом и подожди пару секунд — после этого «Словник» будет работать и без сети." : "<b>Без сети.</b> Открыта копия словаря с телефона. Можно добавлять слова и повторять, всё отправится в облако, когда вернёшься в сеть."}</span>
       ${canGoOnline ? `<button class="btn primary" id="go-online">Сеть есть, синхронизировать</button>` : ""}</div>` : ""}
+    ${(() => { const st = streakInfo(); if(!st.cur && !st.best) return ""; return `
+    <div class="streak${st.doneToday ? " lit" : ""}">
+      <div class="streak-head">
+        <span class="streak-flame">${FLAME}</span>
+        <div class="grow"><b>${st.cur ? "Серия " + plural(st.cur, "день", "дня", "дней") : "Серии пока нет"}</b>
+          <span class="hint">${st.cur && !st.doneToday ? "Сегодня ещё не занимался — пара карточек, и серия продолжится" : st.doneToday ? "Сегодня засчитано" : "Начни сегодня"}${st.best > st.cur ? " · лучшая " + st.best : ""}</span></div>
+      </div>
+      <div class="week">${st.week.map(d => `<span class="${d.on ? "on" : ""}${d.today ? " today" : ""}"><i></i>${d.label}</span>`).join("")}</div>
+    </div>`; })()}
     <h2>Повторение</h2>
     <div class="panel">
       <div class="row">
@@ -706,7 +763,7 @@ function viewReview(v){
   $("#rev-set").onchange = e => { S.meta.revSet = e.target.value; persistMeta(); refresh(); };
   $("#start").onclick = () => {
     const q = buildSession(); if(!q.length) return;
-    S.session = { q, i: 0, flipped: false, res: { bad:0, hard:0, good:0 }, anim: "anim-next" };
+    S.session = { q, i: 0, flipped: false, res: { bad:0, hard:0, good:0 }, anim: "anim-next", wasToday: practiceDays().has(todayKey()) };
     render();
   };
 }
@@ -721,6 +778,7 @@ function renderCard(v){
   if(s.i >= s.q.length){
     v.innerHTML = `
       <h2>Готово</h2>
+      ${!s.wasToday ? (() => { const st = streakInfo(); return `<div class="streak lit anim-done" style="margin-bottom:10px"><div class="streak-head"><span class="streak-flame">${FLAME}</span><div class="grow"><b>${st.cur > 1 ? "Серия продолжается: " + plural(st.cur, "день", "дня", "дней") : "Серия началась!"}</b><span class="hint">${st.cur > 1 ? "Так держать, завтра будет " + (st.cur + 1) : "Приходи завтра, чтобы её продолжить"}</span></div></div></div>`; })() : ""}
       <div class="panel anim-done">
         <div class="bigstat">
           <div><b class="g-good">${s.res.good}</b><span>помню</span></div>
@@ -729,7 +787,7 @@ function renderCard(v){
         </div>
         <div class="row"><button class="btn primary grow" id="again">Ещё круг</button><button class="btn grow" id="done">К выбору</button></div>
       </div>`;
-    $("#again").onclick = () => { const q = buildSession(); S.session = q.length ? { q, i:0, flipped:false, res:{bad:0,hard:0,good:0}, anim:"anim-next" } : null; render(); };
+    $("#again").onclick = () => { const q = buildSession(); S.session = q.length ? { q, i:0, flipped:false, res:{bad:0,hard:0,good:0}, anim:"anim-next", wasToday: true } : null; render(); };
     $("#done").onclick = () => { S.session = null; S.animView = true; refresh(); };
     return;
   }
@@ -1289,7 +1347,7 @@ loadLocal();
 nativeCall("pageAlive");
 window.addEventListener("error", e => nativeCall("jsLog", "ошибка: " + e.message + " @" + e.lineno));
 window.addEventListener("unhandledrejection", e => nativeCall("jsLog", "промис: " + (e.reason && (e.reason.message || e.reason.code) || e.reason)));
-if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); nativeCall("jsLog", "офлайн-копия: " + S.words.size + " слов, копия словаря " + (S.noSnapshot ? "отсутствует" : "есть")); }
+if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; mergeNativeDays(); refresh(); nativeCall("jsLog", "офлайн-копия: " + S.words.size + " слов, копия словаря " + (S.noSnapshot ? "отсутствует" : "есть")); }
 else { refresh(); initCaps(); reportPage(); }
 })();
 </script>
