@@ -128,7 +128,8 @@ public class MainActivity extends Activity {
     private boolean offlineFromAsset = false;
     private TextToSpeech tts;
     private volatile boolean ttsOk = false;
-    private final Object store = new Object();
+    /** Same lock the reminders use, so a grade from a notification never collides with the page. */
+    private final Object store = Store.LOCK;
     private final ExecutorService bg = Executors.newSingleThreadExecutor();
 
     /* ---------- in-app log (shake the phone to see it) ---------- */
@@ -364,10 +365,75 @@ public class MainActivity extends Activity {
                 if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Словник лог", text));
                 Toast.makeText(this, "Лог скопирован", Toast.LENGTH_SHORT).show();
             })
-            .setNeutralButton("Офлайн-копия", (d, w) -> { log("лог: вручную → офлайн"); loadOffline(null); })
-            .setNegativeButton("Онлайн", (d, w) -> { log("лог: вручную → онлайн"); loadOnline(null); })
+            .setNeutralButton("Действия", (d, w) -> showDebugActions())
+            .setNegativeButton("Закрыть", null)
             .create();
         logDialog.show();
+    }
+
+    private void showDebugActions() {
+        final String[] items = {
+            "Открыть онлайн",
+            "Открыть офлайн-копию",
+            "Тест: ежедневное напоминание",
+            "Тест: карточка в шторке",
+            "Тест: защита серии",
+            "Тест: слова без перевода",
+            "Тест: все уведомления сразу",
+            "Показать расписание напоминаний"
+        };
+        new AlertDialog.Builder(this).setTitle("Действия").setItems(items, (d, which) -> {
+            switch (which) {
+                case 0: log("вручную → онлайн"); loadOnline(null); break;
+                case 1: log("вручную → офлайн"); loadOffline(null); break;
+                case 2: testNotif("daily"); break;
+                case 3: testNotif("quiz"); break;
+                case 4: testNotif("streak"); break;
+                case 5: testNotif("weekly"); break;
+                case 6:
+                    for (int i = 0; i < Notifications.KINDS.length; i++) {
+                        final String k = Notifications.KINDS[i];
+                        ui.postDelayed(() -> testNotif(k), i * 700L);
+                    }
+                    break;
+                case 7:
+                    Notifications.scheduleAll(this);
+                    showLog();
+                    break;
+                default: break;
+            }
+        }).show();
+    }
+
+    private void testNotif(String kind) {
+        if (!Notifications.allowed(this)) {
+            askNotifPermission(true);
+            Toast.makeText(this, "Сначала разреши уведомления", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Notifications.test(this, kind);
+    }
+
+    static final int NOTIF_PERMISSION_REQUEST = 77;
+
+    /** Android 13+ needs an explicit yes for notifications; asked once automatically, or again from settings/tests. */
+    private void askNotifPermission(boolean force) {
+        if (Build.VERSION.SDK_INT < 33) return;
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        android.content.SharedPreferences p = Notifications.prefs(this);
+        if (!force && p.getBoolean("askedPermission", false)) return;
+        p.edit().putBoolean("askedPermission", true).apply();
+        requestPermissions(new String[] { android.Manifest.permission.POST_NOTIFICATIONS }, NOTIF_PERMISSION_REQUEST);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == NOTIF_PERMISSION_REQUEST) {
+            boolean ok = results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            log("разрешение на уведомления: " + (ok ? "дано" : "не дано"));
+            if (ok) bg.execute(() -> Notifications.scheduleAll(this));
+        }
     }
 
     /** Top of the artifact frame in CSS px (= height of claude.ai's bar above it), or -1 when not on the artifact. */
@@ -397,6 +463,7 @@ public class MainActivity extends Activity {
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         loadFeedbackPrefs();
+        bg.execute(() -> Notifications.scheduleAll(this));
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyHeaderShift());
 
         int bg = defaultBackground();
@@ -747,7 +814,24 @@ public class MainActivity extends Activity {
             alive = true;
             log("страница стартовала (" + (offline ? "офлайн" : "онлайн") + ")");
             ui.postDelayed(() -> hideSplash(true), 450);
+            ui.postDelayed(() -> { if (Notifications.settings(MainActivity.this).on) askNotifPermission(false); }, 2500);
         }
+
+        /** Reminder settings changed in Словник: store them and re-plan alarms right away. */
+        @JavascriptInterface
+        public void notifSettings(String json) {
+            Notifications.saveSettings(MainActivity.this, json);
+            bg.execute(() -> Notifications.scheduleAll(MainActivity.this));
+            boolean on = true;
+            try { on = new JSONObject(json).optBoolean("on", true); } catch (Exception ignored) { }
+            if (on) runOnUiThread(() -> askNotifPermission(true));
+        }
+
+        @JavascriptInterface
+        public boolean notifAllowed() { return Notifications.allowed(MainActivity.this); }
+
+        @JavascriptInterface
+        public void testNotification(String kind) { runOnUiThread(() -> testNotif(kind)); }
 
         @JavascriptInterface
         public void jsLog(String msg) { MainActivity.log("страница: " + msg); }

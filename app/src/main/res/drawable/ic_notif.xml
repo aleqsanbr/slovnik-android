@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- status-bar icon: two index cards, white silhouette -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <group android:pivotX="13" android:pivotY="12" android:rotation="-9">
+        <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55"
+            android:pathData="M8,3h9a2,2 0 0,1 2,2v13a2,2 0 0,1 -2,2h-9a2,2 0 0,1 -2,-2v-13a2,2 0 0,1 2,-2z" />
+    </group>
+    <group android:pivotX="11" android:pivotY="12" android:rotation="4">
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M6,4h9a2,2 0 0,1 2,2v13a2,2 0 0,1 -2,2h-9a2,2 0 0,1 -2,-2v-13a2,2 0 0,1 2,-2z M6,8.2h9v1h-9z M7,12h7v0.9h-7z M7,15h7v0.9h-7z" />
+    </group>
+</vector>

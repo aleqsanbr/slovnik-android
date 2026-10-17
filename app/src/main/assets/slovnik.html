@@ -76,7 +76,7 @@ h2:first-child{margin-top:4px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grow{flex:1 1 140px;min-width:0}
 label.f{display:grid;gap:5px;font-size:.82rem;color:var(--muted)}
-input[type=text],input[type=search],select,textarea{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 11px;font-size:16px;color:var(--ink)}
+input[type=text],input[type=search],input[type=time],select,textarea{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 11px;font-size:16px;color:var(--ink)}
 textarea{min-height:120px;resize:vertical;line-height:1.4}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:10px 14px;font-weight:500}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -165,7 +165,7 @@ body,.app{transition:background-color .4s var(--ease),color .4s var(--ease)}
 .btn:not(.primary):not(.danger){background:var(--accent-soft);border-color:transparent;color:var(--accent-soft-ink)}
 .btn.primary:not(:disabled):hover{box-shadow:0 2px 8px -2px color-mix(in srgb,var(--accent) 60%,transparent)}
 .btn:active:not(:disabled),.grades button:active,.emojis button:active{transform:scale(.96)}
-input[type=text],input[type=search],select,textarea{border-radius:14px;transition:border-color .2s,box-shadow .2s}
+input[type=text],input[type=search],input[type=time],select,textarea{border-radius:14px;transition:border-color .2s,box-shadow .2s}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
 .seg{border-radius:99px;padding:4px}
 .seg button{border-radius:99px;transition:background-color .25s var(--ease),color .25s}
@@ -278,7 +278,8 @@ const MAX_LV = 6;
 const MIN = 60e3, DAY = 864e5;
 const INTERVALS = [10*MIN, 1*DAY, 3*DAY, 7*DAY, 14*DAY, 30*DAY, 60*DAY];
 const EMOJIS = ["📕","📗","📘","📙","📚","📖","🎮","🎬","📰","🎧","✍️","🧠","⭐","🌍","🏛️","🔬","💼","🎵"];
-const DEFAULT_META = { sets: [], level: "B1–B2", dir: "en", sessionLen: 20, revSet: "all", ttsAuto: false, accent: "en-US", sound: true, haptics: true };
+const DEFAULT_META = { sets: [], level: "B1–B2", dir: "en", sessionLen: 20, revSet: "all", ttsAuto: false, accent: "en-US", sound: true, haptics: true,
+  notif: { on: true, time: "19:00", quiz: 2, quietFrom: "22:00", quietTo: "09:00" }, days: [] };
 
 const S = {
   words: new Map(), meta: structuredClone(DEFAULT_META),
@@ -430,6 +431,11 @@ function flushOutbox(){
   pump();
 }
 window.addEventListener("online", () => flushOutbox());
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState !== "visible" || !NATIVE) return;
+  if(OFFLINE){ if(!S.session){ loadOfflineSnapshot(); refresh(true); } }
+  else if(S.db && nativePending()){ mergeNativePending(); reportSnapshot(); refresh(true); }
+});
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && obCount()) flushOutbox(); });
 setInterval(() => { if(obCount() && !WQ.running.size) flushOutbox(); }, 30000);
 
@@ -593,7 +599,15 @@ function buildSession(){
   for(let i = q.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [q[i],q[j]] = [q[j],q[i]]; }
   return q;
 }
+function markPracticeDay(){
+  const d = new Date(), today = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  const days = Array.isArray(S.meta.days) ? S.meta.days : [];
+  if(days.includes(today)) return;
+  S.meta.days = [...days, today].slice(-90);
+  persistMeta();
+}
 function grade(w, dir, g){
+  markPracticeDay();
   const now = Date.now(); let lv = w.lv[dir];
   if(g === "bad"){ lv = Math.max(0, lv-2); w.due[dir] = now + 10*MIN; w.bad++; }
   else if(g === "hard"){ w.due[dir] = now + Math.max(10*MIN, INTERVALS[lv]/2); w.ok++; }
@@ -1093,6 +1107,22 @@ function viewMore(v){
       <label class="toggle"><span>Вибрация</span><input type="checkbox" id="m-hap" ${S.meta.haptics !== false ? "checked" : ""}></label>
     </div>
 
+    <h2>Напоминания</h2>
+    <div class="panel">
+      ${NATIVE ? (() => { const n = { ...DEFAULT_META.notif, ...(S.meta.notif || {}) }; return `
+      <label class="toggle"><span>Присылать напоминания</span><input type="checkbox" id="n-on" ${n.on ? "checked" : ""}></label>
+      <div ${n.on ? "" : "hidden"} id="n-more" style="display:grid;gap:12px">
+        <label class="f">Ежедневное напоминание, если есть слова к повтору<input type="time" id="n-time" value="${esc(n.time)}"></label>
+        <label class="f">Карточек в шторку за день: слово с кнопками «Помню» и «Не помню»
+          <select id="n-quiz">${[0,1,2,3].map(k => `<option value="${k}" ${+n.quiz === k ? "selected" : ""}>${k === 0 ? "не присылать" : k}</option>`).join("")}</select></label>
+        <div class="row"><label class="f grow">Тихие часы с<input type="time" id="n-qf" value="${esc(n.quietFrom)}"></label><label class="f grow">до<input type="time" id="n-qt" value="${esc(n.quietTo)}"></label></div>
+        <p class="hint" style="margin:0">Ещё приходят вечернее напоминание о серии занятий и раз в неделю — о словах без перевода. Не больше трёх уведомлений в день, и ни одного, если сегодня ты уже занимался.${nativeCall("notifAllowed") === false ? " <b>Уведомления сейчас запрещены</b> — Android спросит разрешение, когда ты включишь переключатель." : ""}</p>
+        <details><summary class="hint">Проверить уведомления</summary>
+          <div class="row" style="margin-top:8px">${[["daily","Ежедневное"],["quiz","Карточка"],["streak","Серия"],["weekly","Без перевода"]].map(([k,l]) => `<button class="btn" data-ntest="${k}">${l}</button>`).join("")}</div>
+        </details>
+      </div>`; })() : `<p class="hint" style="margin:0">Напоминания работают в Android-приложении «Словник»: они собираются из твоих слов прямо на телефоне, даже без интернета.</p>`}
+    </div>
+
     <h2>Настройки</h2>
     <div class="panel">
       <label class="f">Твой уровень английского (влияет на заметки от Claude)
@@ -1134,6 +1164,16 @@ function viewMore(v){
   if($("#acc-us")) $("#acc-us").onclick = () => { S.meta.accent = "en-US"; persistMeta(); render(); speak("Hello! This is how I sound."); };
   if($("#acc-gb")) $("#acc-gb").onclick = () => { S.meta.accent = "en-GB"; persistMeta(); render(); speak("Hello! This is how I sound."); };
   if($("#m-say")) $("#m-say").onclick = () => speak("The quick brown fox jumps over the lazy dog.");
+  const saveNotif = () => {
+    const n = { ...DEFAULT_META.notif, ...(S.meta.notif || {}) };
+    n.on = $("#n-on").checked; n.time = $("#n-time").value || n.time; n.quiz = +$("#n-quiz").value;
+    n.quietFrom = $("#n-qf").value || n.quietFrom; n.quietTo = $("#n-qt").value || n.quietTo;
+    S.meta.notif = n; persistMeta();
+    nativeCall("notifSettings", JSON.stringify(n));
+    $("#n-more").hidden = !n.on;
+  };
+  ["n-on","n-time","n-quiz","n-qf","n-qt"].forEach(id => { const el = $("#" + id); if(el) el.onchange = saveNotif; });
+  v.querySelectorAll("[data-ntest]").forEach(b => b.onclick = () => nativeCall("testNotification", b.dataset.ntest));
   $("#m-sound").onchange = e => { S.meta.sound = e.target.checked; persistMeta(); if(e.target.checked) fx("good"); };
   $("#m-hap").onchange = e => { S.meta.haptics = e.target.checked; persistMeta(); if(e.target.checked) haptic("confirm"); };
   $("#m-exp").onclick = exportJson;
