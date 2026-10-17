@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
 
     /* ---------- animated splash ---------- */
     private FrameLayout splash;
-    private ImageView splashIcon;
+    private View splashIcon;
     private ObjectAnimator breathing;
     private volatile boolean prefSound = true, prefHaptics = true;
 
@@ -178,18 +178,23 @@ public class MainActivity extends Activity {
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        splashIcon = new ImageView(this);
-        splashIcon.setImageDrawable(getDrawable(R.mipmap.ic_launcher));
-        splashIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        final int iconSize = dp(124);
-        splashIcon.setOutlineProvider(new ViewOutlineProvider() {
-            @Override public void getOutline(View view, Outline outline) {
-                int inset = Math.round(view.getWidth() * 0.12f);
-                outline.setOval(inset, inset, view.getWidth() - inset, view.getHeight() - inset);
-            }
+        // Same geometry as the launcher: a circle showing the middle 72 of the icon's 108 units.
+        final int iconSize = dp(120);
+        FrameLayout badge = new FrameLayout(this);
+        badge.setBackgroundColor(getColor(R.color.icon_bg));
+        badge.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View view, Outline outline) { outline.setOval(0, 0, view.getWidth(), view.getHeight()); }
         });
-        splashIcon.setClipToOutline(true);
-        splashIcon.setElevation(dp(6));
+        badge.setClipToOutline(true);
+        badge.setElevation(dp(6));
+        ImageView art = new ImageView(this);
+        art.setImageDrawable(getDrawable(R.drawable.ic_fg));
+        art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        // drawn at 80% of the launcher's scale, so the cards get room to breathe inside the circle
+        int artSize = Math.round(iconSize * 108f / 72f * 0.8f);
+        badge.addView(art, new FrameLayout.LayoutParams(artSize, artSize, Gravity.CENTER));
+        badge.setClipChildren(true);
+        splashIcon = badge;
         col.addView(splashIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
 
         TextView name = new TextView(this);
