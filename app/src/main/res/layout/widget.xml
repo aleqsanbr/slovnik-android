@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_bg">
+
+    <LinearLayout
+        android:id="@+id/w_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="8dp">
+
+        <ImageView
+            android:id="@+id/w_flame"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_flame"
+            android:contentDescription="Серия" />
+
+        <TextView
+            android:id="@+id/w_streak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textColor="@color/widget_ink"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="0" />
+
+        <TextView
+            android:id="@+id/w_due"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/widget_muted"
+            android:textSize="13sp"
+            android:text="Словник" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_card"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="14dp"
+        android:background="@drawable/widget_card_bg">
+
+        <TextView
+            android:id="@+id/w_word"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="serif"
+            android:textStyle="bold"
+            android:textSize="22sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="@color/widget_ink"
+            android:text="Словник" />
+
+        <TextView
+            android:id="@+id/w_answer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:textSize="15sp"
+            android:textColor="@color/widget_ink"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/w_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="12sp"
+            android:textColor="@color/widget_muted"
+            android:text="Нажми, чтобы увидеть перевод" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_buttons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingTop="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/w_bad"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_bg"
+            android:textColor="@color/widget_btn_ink"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="Не помню" />
+
+        <TextView
+            android:id="@+id/w_good"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_good_bg"
+            android:textColor="@color/widget_card"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="Помню" />
+    </LinearLayout>
+</LinearLayout>

@@ -5,4 +5,11 @@
     <color name="icon_card">#F8ECF1</color>
     <color name="icon_rule">#C9636F</color>
     <color name="icon_line">#E2C7D1</color>
+    <color name="widget_bg">#F6EEF1</color>
+    <color name="widget_card">#FFFFFF</color>
+    <color name="widget_ink">#1F1A1C</color>
+    <color name="widget_muted">#6E6267</color>
+    <color name="widget_accent">#8C0046</color>
+    <color name="widget_btn">#F3DCE4</color>
+    <color name="widget_btn_ink">#3A0021</color>
 </resources>

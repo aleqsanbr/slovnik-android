@@ -923,6 +923,7 @@ public class MainActivity extends Activity {
         public void saveSnapshot(String json) {
             if (json == null || json.isEmpty()) return;
             synchronized (store) { writeFile(snapFile(), json); }
+            ui.post(() -> Widget.updateAll(MainActivity.this));
         }
 
         @JavascriptInterface

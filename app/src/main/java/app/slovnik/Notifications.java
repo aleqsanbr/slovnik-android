@@ -440,42 +440,54 @@ final class Notifications {
             .build());
     }
 
-    /** Grades exactly like Словник does (EN → RU direction) and queues the change for the cloud. */
-    static void grade(Context c, String id, String g) {
+    /** Result of grading a word: its new level and when it comes back. */
+    static final class Graded { int level; long next; }
+
+    /**
+     * Grades exactly like Словник does (EN → RU direction), saves the local copy, queues the change for the cloud
+     * and counts today as a practice day. Shared by the notification shade and the widget. Null if the word is gone.
+     */
+    static Graded applyGrade(Context c, String id, String g) {
         long now = System.currentTimeMillis();
+        Graded r = new Graded();
+        synchronized (Store.LOCK) {
+            JSONObject snap = Store.readSnapshot(c);
+            JSONObject w = findWord(snap, id);
+            if (w == null) return null;
+            try {
+                JSONObject lvO = w.optJSONObject("lv"), dueO = w.optJSONObject("due");
+                if (lvO == null) { lvO = new JSONObject().put("en", 0).put("ru", 0); w.put("lv", lvO); }
+                if (dueO == null) { dueO = new JSONObject().put("en", 0).put("ru", 0); w.put("due", dueO); }
+                int l = lvO.optInt("en", 0);
+                if ("bad".equals(g)) { l = Math.max(0, l - 2); r.next = 10 * MIN; w.put("bad", w.optInt("bad", 0) + 1); }
+                else { l = Math.min(MAX_LV, l + 1); r.next = INTERVALS[l]; w.put("ok", w.optInt("ok", 0) + 1); }
+                lvO.put("en", l);
+                dueO.put("en", now + r.next);
+                r.level = l;
+                Store.write(Store.snapshot(c), snap.toString());
+                Store.queueWord(c, id, w);
+            } catch (JSONException e) {
+                return null;
+            }
+        }
+        Set<String> days = new HashSet<>(prefs(c).getStringSet("days", new HashSet<>()));
+        days.add(day(now));
+        prefs(c).edit().putStringSet("days", days).apply();
+        return r;
+    }
+
+    /** "Remember" / "Forgot" pressed in the shade. */
+    static void grade(Context c, String id, String g) {
         String result;
-        int newLv = 0;
-        long next = 0;
         if ("__sample".equals(id)) {
             result = "тест";
         } else {
-            synchronized (Store.LOCK) {
-                JSONObject snap = Store.readSnapshot(c);
-                JSONObject w = findWord(snap, id);
-                if (w == null) { cancel(c, ID_QUIZ); return; }
-                try {
-                    JSONObject lvO = w.optJSONObject("lv"), dueO = w.optJSONObject("due");
-                    if (lvO == null) { lvO = new JSONObject().put("en", 0).put("ru", 0); w.put("lv", lvO); }
-                    if (dueO == null) { dueO = new JSONObject().put("en", 0).put("ru", 0); w.put("due", dueO); }
-                    int l = lvO.optInt("en", 0);
-                    if ("bad".equals(g)) { l = Math.max(0, l - 2); next = 10 * MIN; w.put("bad", w.optInt("bad", 0) + 1); }
-                    else { l = Math.min(MAX_LV, l + 1); next = INTERVALS[l]; w.put("ok", w.optInt("ok", 0) + 1); }
-                    lvO.put("en", l);
-                    dueO.put("en", now + next);
-                    newLv = l;
-                    Store.write(Store.snapshot(c), snap.toString());
-                    Store.queueWord(c, id, w);
-                } catch (JSONException e) {
-                    cancel(c, ID_QUIZ);
-                    return;
-                }
-            }
-            Set<String> days = new HashSet<>(prefs(c).getStringSet("days", new HashSet<>()));
-            days.add(day(now));
-            prefs(c).edit().putStringSet("days", days).apply();
-            result = "уровень " + newLv + " из " + MAX_LV + ", снова через " + human(next);
+            Graded r = applyGrade(c, id, g);
+            if (r == null) { cancel(c, ID_QUIZ); return; }
+            result = "уровень " + r.level + " из " + MAX_LV + ", снова через " + human(r.next);
         }
         MainActivity.log("оценка из шторки: " + id + " → " + g);
+        Widget.updateAll(c);
         show(c, ID_QUIZ, base(c).setContentTitle("bad".equals(g) ? "Ничего, повторим скоро" : "Засчитано")
             .setContentText(result)
             .setOnlyAlertOnce(true)

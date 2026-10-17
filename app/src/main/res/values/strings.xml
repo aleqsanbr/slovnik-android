@@ -3,4 +3,5 @@
     <string name="sc_add">Добавить слово</string>
     <string name="sc_review">Повторить</string>
     <string name="sc_words">Словарь</string>
+    <string name="widget_description">Слово с истёкшим сроком повторения, серия и сколько слов ждут</string>
 </resources>

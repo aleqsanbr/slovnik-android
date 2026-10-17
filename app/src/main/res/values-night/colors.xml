@@ -1,3 +1,10 @@
 <resources>
     <color name="bg">#11141A</color>
+    <color name="widget_bg">#241A1D</color>
+    <color name="widget_card">#2F2427</color>
+    <color name="widget_ink">#ECE0E3</color>
+    <color name="widget_muted">#A8999E</color>
+    <color name="widget_accent">#FFB1C8</color>
+    <color name="widget_btn">#4B2B35</color>
+    <color name="widget_btn_ink">#FFD9E2</color>
 </resources>
