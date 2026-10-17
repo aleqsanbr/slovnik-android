@@ -1,0 +1,8 @@
+<resources>
+    <color name="bg">#ECEFF3</color>
+    <color name="icon_bg">#4A2D38</color>
+    <color name="icon_back">#7A5262</color>
+    <color name="icon_card">#F8ECF1</color>
+    <color name="icon_rule">#C9636F</color>
+    <color name="icon_line">#E2C7D1</color>
+</resources>

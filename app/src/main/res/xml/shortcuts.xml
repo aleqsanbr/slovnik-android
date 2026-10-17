@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="add" android:enabled="true"
+        android:shortcutShortLabel="@string/sc_add">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="app.slovnik"
+            android:targetClass="app.slovnik.MainActivity"
+            android:data="slovnik://tab/add" />
+    </shortcut>
+    <shortcut android:shortcutId="review" android:enabled="true"
+        android:shortcutShortLabel="@string/sc_review">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="app.slovnik"
+            android:targetClass="app.slovnik.MainActivity"
+            android:data="slovnik://tab/review" />
+    </shortcut>
+    <shortcut android:shortcutId="words" android:enabled="true"
+        android:shortcutShortLabel="@string/sc_words">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="app.slovnik"
+            android:targetClass="app.slovnik.MainActivity"
+            android:data="slovnik://tab/words" />
+    </shortcut>
+</shortcuts>
