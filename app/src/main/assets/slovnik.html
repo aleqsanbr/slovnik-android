@@ -475,14 +475,33 @@ function weightedTake(arr, n, weight){
 function poolFor(dir, setId){
   return [...S.words.values()].filter(w => reviewable(w) && (setId==="all" || (setId==="none" ? !w.set : w.set===setId)));
 }
+/* "mix" reviews both directions; each card still updates the level of the direction it was shown in */
+const DIRS = d => d === "mix" ? ["en","ru"] : [d];
+const isDue = (w, d, now) => DIRS(d).some(x => w.due[x] <= now);
+const lvOf = (w, d) => DIRS(d).reduce((a, x) => a + w.lv[x], 0) / DIRS(d).length;
+const dirLabel = d => d === "en" ? "EN → RU" : d === "ru" ? "RU → EN" : "вперемешку";
+function takeUnique(cands, n, weight, used){
+  const pool = cands.filter(c => !used.has(c.w.id)).map(c => ({ c, wt: Math.max(0.01, weight(c)) })), out = [];
+  while(out.length < n && pool.length){
+    const total = pool.reduce((a,b) => a + b.wt, 0); let r = Math.random()*total, i = 0;
+    for(; i < pool.length-1; i++){ r -= pool[i].wt; if(r <= 0) break; }
+    const { c } = pool.splice(i, 1)[0];
+    if(used.has(c.w.id)) continue;
+    used.add(c.w.id); out.push(c);
+  }
+  return out;
+}
 function buildSession(){
-  const dir = S.meta.dir, n = S.meta.sessionLen, now = Date.now();
-  const pool = poolFor(dir, S.meta.revSet);
-  const due = pool.filter(w => w.due[dir] <= now), rest = pool.filter(w => w.due[dir] > now);
-  const keepForRest = Math.min(rest.length, Math.max(2, Math.round(n*0.2)));
-  const a = weightedTake(due, Math.min(due.length, n - keepForRest), w => (MAX_LV+1-w.lv[dir])**2);
-  const b = weightedTake(rest, Math.min(rest.length, n - a.length), w => (MAX_LV+1-w.lv[dir]) + 1);
-  const q = [...a, ...b].map(w => w.id);
+  const n = S.meta.sessionLen, now = Date.now();
+  const cands = poolFor(S.meta.dir, S.meta.revSet).flatMap(w => DIRS(S.meta.dir).map(x => ({ w, x })));
+  const due = cands.filter(c => c.w.due[c.x] <= now), rest = cands.filter(c => c.w.due[c.x] > now);
+  const words = new Set(cands.map(c => c.w.id)).size;
+  const restWords = new Set(rest.map(c => c.w.id)).size;
+  const keepForRest = Math.min(restWords, Math.max(2, Math.round(n*0.2)));
+  const used = new Set();
+  const a = takeUnique(due, Math.min(words, n - keepForRest), c => (MAX_LV+1-c.w.lv[c.x])**2, used);
+  const b = takeUnique(rest, Math.min(words, n) - a.length, c => (MAX_LV+1-c.w.lv[c.x]) + 1, used);
+  const q = [...a, ...b].map(c => ({ id: c.w.id, d: c.x }));
   for(let i = q.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [q[i],q[j]] = [q[j],q[i]]; }
   return q;
 }
@@ -502,7 +521,7 @@ function nextLabel(w, dir, g){
 /* ---------- header ---------- */
 function renderHeader(){
   const all = [...S.words.values()], now = Date.now(), dir = S.meta.dir;
-  const dueN = poolFor(dir, S.meta.revSet).filter(w => w.due[dir] <= now).length;
+  const dueN = poolFor(dir, S.meta.revSet).filter(w => isDue(w, dir, now)).length;
   $("#hdr-counts").textContent = plural(all.length, "слово", "слова", "слов") + " · " + dueN + " к повтору";
   const s = $("#hdr-sync");
   const pending = obCount();
@@ -551,9 +570,9 @@ function setOptions(sel, withAll){
 function viewReview(v){
   if(S.session) return renderCard(v);
   const dir = S.meta.dir, pool = poolFor(dir, S.meta.revSet), now = Date.now();
-  const dueN = pool.filter(w => w.due[dir] <= now).length;
+  const dueN = pool.filter(w => isDue(w, dir, now)).length;
   const total = S.words.size;
-  const avg = pool.length ? (pool.reduce((a,w)=>a+w.lv[dir],0)/pool.length) : 0;
+  const avg = pool.length ? (pool.reduce((a,w)=>a+lvOf(w, dir),0)/pool.length) : 0;
   const canGoOnline = OFFLINE && !!nativeCall("online");
   v.innerHTML = `
     ${OFFLINE ? `<div class="panel" style="margin-bottom:6px;background:var(--accent-soft);color:var(--accent-soft-ink)">
@@ -565,6 +584,7 @@ function viewReview(v){
         <div class="seg" role="group" aria-label="Направление">
           <button id="dir-en" aria-pressed="${dir==="en"}">EN → RU</button>
           <button id="dir-ru" aria-pressed="${dir==="ru"}">RU → EN</button>
+          <button id="dir-mix" aria-pressed="${dir==="mix"}">Вперемешку</button>
         </div>
         <select id="rev-set" class="grow" aria-label="Набор">${setOptions(S.meta.revSet, true)}</select>
       </div>
@@ -574,16 +594,17 @@ function viewReview(v){
         <div><b>${avg.toFixed(1)}</b><span>средний уровень</span></div>
       </div>
       <button class="btn primary wide" id="start" ${pool.length?"":"disabled"}>Начать: ${Math.min(S.meta.sessionLen, pool.length)} карточек</button>
-      <p class="hint" style="margin:0">Чаще попадаются слова с низким уровнем и те, у которых подошёл срок. Выученные тоже иногда всплывают, чтобы не забывались. Уровни для EN → RU и RU → EN считаются отдельно.</p>
+      <p class="hint" style="margin:0">Чаще попадаются слова с низким уровнем и те, у которых подошёл срок. Выученные тоже иногда всплывают, чтобы не забывались. Уровни для EN → RU и RU → EN считаются отдельно. Вперемешку каждая карточка выпадает в случайную сторону и двигает уровень своего направления.</p>
     </div>
     ${total ? "" : `<div class="empty" style="margin-top:14px"><b>Пока пусто</b>Добавь слова на вкладке «Добавить»: по одному или целым списком из книги.</div>`}`;
   if($("#go-online")) $("#go-online").onclick = () => nativeCall("goOnline");
   $("#dir-en").onclick = () => { S.meta.dir = "en"; persistMeta(); refresh(); };
   $("#dir-ru").onclick = () => { S.meta.dir = "ru"; persistMeta(); refresh(); };
+  $("#dir-mix").onclick = () => { S.meta.dir = "mix"; persistMeta(); refresh(); };
   $("#rev-set").onchange = e => { S.meta.revSet = e.target.value; persistMeta(); refresh(); };
   $("#start").onclick = () => {
     const q = buildSession(); if(!q.length) return;
-    S.session = { q, i: 0, dir: S.meta.dir, flipped: false, res: { bad:0, hard:0, good:0 }, anim: "anim-next" };
+    S.session = { q, i: 0, flipped: false, res: { bad:0, hard:0, good:0 }, anim: "anim-next" };
     render();
   };
 }
@@ -606,14 +627,15 @@ function renderCard(v){
         </div>
         <div class="row"><button class="btn primary grow" id="again">Ещё круг</button><button class="btn grow" id="done">К выбору</button></div>
       </div>`;
-    $("#again").onclick = () => { const q = buildSession(); S.session = q.length ? { q, i:0, dir:S.meta.dir, flipped:false, res:{bad:0,hard:0,good:0}, anim:"anim-next" } : null; render(); };
+    $("#again").onclick = () => { const q = buildSession(); S.session = q.length ? { q, i:0, flipped:false, res:{bad:0,hard:0,good:0}, anim:"anim-next" } : null; render(); };
     $("#done").onclick = () => { S.session = null; S.animView = true; refresh(); };
     return;
   }
   const anim = s.anim || ""; s.anim = "";
-  const w = S.words.get(s.q[s.i]);
+  const entry = typeof s.q[s.i] === "string" ? { id: s.q[s.i], d: "en" } : s.q[s.i];
+  const w = S.words.get(entry.id);
   if(!w){ s.i++; return renderCard(v); }
-  const dir = s.dir, front = dir === "en" ? w.en : w.ru, back = dir === "en" ? w.ru : w.en;
+  const dir = entry.d, front = dir === "en" ? w.en : w.ru, back = dir === "en" ? w.ru : w.en;
   const showCtxFront = dir === "en" && w.context;
   v.innerHTML = `
     <div class="stage">
