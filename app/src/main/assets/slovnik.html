@@ -244,6 +244,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 <script>
 (function(){
 "use strict";
+/* This page's own source, captured before the first render, so the Android app can keep an up-to-date offline copy. */
+const PAGE_SOURCE = (() => {
+  try{
+    const me = document.currentScript;
+    const parts = [];
+    for(const n of document.body.childNodes){
+      if(n === me || n.nodeName === "SCRIPT") continue;
+      parts.push(n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? n.textContent : "");
+    }
+    return parts.join("") + "<script>" + me.textContent + "<\/script>";
+  }catch(e){ return ""; }
+})();
 const LS_KEY = "slovnik.v1";
 const MAX_LV = 6;
 const MIN = 60e3, DAY = 864e5;
@@ -296,6 +308,10 @@ function reportSnapshot(){
   if(!NATIVE || !(OFFLINE || S.mode === "db")) return;
   clearTimeout(reportSnapshot.t);
   reportSnapshot.t = setTimeout(() => nativeCall("saveSnapshot", JSON.stringify({ meta:S.meta, seed:getSeed(), words:[...S.words.values()].map(w => ({ id:w.id, ...plain(w) })) })), 1200);
+}
+function reportPage(){
+  if(!NATIVE || OFFLINE || !PAGE_SOURCE || PAGE_SOURCE.length < 5000) return;
+  setTimeout(() => nativeCall("savePage", PAGE_SOURCE), 2500);
 }
 function loadOfflineSnapshot(){
   let d = null; try{ d = JSON.parse(nativeCall("snapshot") || "null"); }catch(e){}
@@ -1094,6 +1110,6 @@ document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
 S.tab = tabFromHash() || S.tab;
 loadLocal();
 if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); }
-else { refresh(); initCaps(); }
+else { refresh(); initCaps(); reportPage(); }
 })();
 </script>

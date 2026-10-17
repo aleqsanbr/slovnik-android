@@ -182,12 +182,16 @@ public class MainActivity extends Activity {
         offline = true;
         headerPx = 0;
         applyHeaderShift();
+        // Newest copy the online page handed over; the one bundled in the APK only covers the very first launch.
         String page;
-        try (InputStream in = getAssets().open("slovnik.html")) {
-            page = new String(readAll(in), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            Toast.makeText(this, "Нет сети, а офлайн-копия не открылась", Toast.LENGTH_LONG).show();
-            return;
+        synchronized (store) { page = readFile(pageFile()); }
+        if (page.length() < 5000) {
+            try (InputStream in = getAssets().open("slovnik.html")) {
+                page = new String(readAll(in), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                Toast.makeText(this, "Нет сети, а офлайн-копия не открылась", Toast.LENGTH_LONG).show();
+                return;
+            }
         }
         String html = "<!doctype html><html><head><meta charset=\"utf-8\">"
             + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
@@ -210,6 +214,7 @@ public class MainActivity extends Activity {
 
     private File snapFile() { return new File(getFilesDir(), "snapshot.json"); }
     private File pendFile() { return new File(getFilesDir(), "pending.json"); }
+    private File pageFile() { return new File(getFilesDir(), "page.html"); }
     private boolean hasSnapshot() { return snapFile().length() > 0; }
 
     private static byte[] readAll(InputStream in) throws IOException {
@@ -379,6 +384,14 @@ public class MainActivity extends Activity {
         public void saveSnapshot(String json) {
             if (json == null || json.isEmpty()) return;
             synchronized (store) { writeFile(snapFile(), json); }
+        }
+
+        @JavascriptInterface
+        public void savePage(String html) {
+            if (html == null || html.length() < 5000) return;
+            synchronized (store) {
+                if (!html.equals(readFile(pageFile()))) writeFile(pageFile(), html);
+            }
         }
 
         @JavascriptInterface
