@@ -465,6 +465,8 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         root = new FrameLayout(this);
         web = new WebView(this);
+        // no Android 12+ "stretch" at the ends of the page: Словник scrolls like a native screen
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         loadFeedbackPrefs();
