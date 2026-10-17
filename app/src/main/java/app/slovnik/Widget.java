@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -113,6 +114,13 @@ public class Widget extends AppWidgetProvider {
         boolean open = w != null && p.getBoolean("open_" + wid, false);
         if (w != null) p.edit().putString("word_" + wid, w.optString("id")).apply();
 
+        // Revealed: the grade buttons take height, so the word shrinks and the card tightens to leave room for the translation.
+        int pad = Math.round(14 * c.getResources().getDisplayMetrics().density);
+        int padV = open ? Math.round(8 * c.getResources().getDisplayMetrics().density) : pad;
+        v.setViewPadding(R.id.w_card, pad, padV, pad, padV);
+        v.setTextViewTextSize(R.id.w_word, TypedValue.COMPLEX_UNIT_SP, open ? 16 : 22);
+        v.setInt(R.id.w_word, "setMaxLines", open ? 1 : 2);
+        v.setInt(R.id.w_answer, "setMaxLines", 2);
         v.setViewVisibility(R.id.w_answer, open ? View.VISIBLE : View.GONE);
         v.setViewVisibility(R.id.w_buttons, open ? View.VISIBLE : View.GONE);
         v.setViewVisibility(R.id.w_hint, open ? View.GONE : View.VISIBLE);
@@ -128,7 +136,7 @@ public class Widget extends AppWidgetProvider {
             String id = w.optString("id");
             v.setTextViewText(R.id.w_word, w.optString("en"));
             String ru = w.optString("ru"), note = w.optString("note", "").trim();
-            v.setTextViewText(R.id.w_answer, note.isEmpty() ? ru : ru + "\n" + note);
+            v.setTextViewText(R.id.w_answer, note.isEmpty() ? ru : ru + " — " + note);
             v.setTextViewText(R.id.w_hint, "Нажми, чтобы увидеть перевод");
             v.setOnClickPendingIntent(R.id.w_card, self(c, ACTION_REVEAL, wid, null, null, 1));
             v.setOnClickPendingIntent(R.id.w_bad, self(c, ACTION_GRADE, wid, id, "bad", 2));

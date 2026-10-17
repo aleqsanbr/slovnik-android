@@ -73,8 +73,8 @@
             android:id="@+id/w_answer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:maxLines="3"
+            android:layout_marginTop="2dp"
+            android:maxLines="2"
             android:ellipsize="end"
             android:textSize="15sp"
             android:textColor="@color/widget_ink"
@@ -97,13 +97,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="8dp"
+        android:paddingTop="6dp"
         android:visibility="gone">
 
         <TextView
             android:id="@+id/w_bad"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="38dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:gravity="center"
@@ -116,7 +116,7 @@
         <TextView
             android:id="@+id/w_good"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="38dp"
             android:layout_weight="1"
             android:layout_marginStart="4dp"
             android:gravity="center"
