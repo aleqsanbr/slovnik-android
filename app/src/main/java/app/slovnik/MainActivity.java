@@ -178,6 +178,11 @@ public class MainActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
+        // the icon springs and grows past its own bounds: let it draw outside instead of being cut square
+        col.setClipChildren(false);
+        col.setClipToPadding(false);
+        splash.setClipChildren(false);
+        splash.setClipToPadding(false);
 
         // Same geometry as the launcher: a circle showing the middle 72 of the icon's 108 units.
         final int iconSize = dp(120);
