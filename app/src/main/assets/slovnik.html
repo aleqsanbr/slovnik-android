@@ -1,0 +1,1077 @@
+<title>Словник</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: one narrow app column, index-card review in the middle, tab bar fixed to the bottom. */
+:root{
+  --bg:#ECEFF3; --surface:#FFFFFF; --ink:#1B2232; --muted:#667085; --line:#D9DEE6;
+  --accent:#2747A8; --accent-ink:#FFFFFF; --rule:#CADBEE; --redrule:#E39AA4;
+  --good:#2C7A57; --hard:#A86C12; --bad:#B93A33; --chip:#E2E7F0;
+  --f-card:"Spectral", Georgia, "Times New Roman", serif;
+  --f-ui:"Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --nav-h:62px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11141A; --surface:#1A1F28; --ink:#E5E8EE; --muted:#8D96A7; --line:#2A3140;
+  --accent:#8EA6FF; --accent-ink:#0E1220; --rule:#243246; --redrule:#7C3C47;
+  --good:#5CC497; --hard:#E1B252; --bad:#F0807A; --chip:#262D3A; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11141A; --surface:#1A1F28; --ink:#E5E8EE; --muted:#8D96A7; --line:#2A3140;
+  --accent:#8EA6FF; --accent-ink:#0E1220; --rule:#243246; --redrule:#7C3C47;
+  --good:#5CC497; --hard:#E1B252; --bad:#F0807A; --chip:#262D3A; color-scheme:dark }
+/* static fallbacks for the tonal tokens */
+:root{ --seed:#4A5BB8; --accent-soft:#DCE2F7; --accent-soft-ink:#1B2A66; --ease:cubic-bezier(.2,0,0,1); --spring:cubic-bezier(.34,1.4,.64,1) }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --accent-soft:#2A3456; --accent-soft-ink:#DCE2FF }}
+:root[data-theme="dark"]{ --accent-soft:#2A3456; --accent-soft-ink:#DCE2FF }
+/* Material You: every neutral and accent tone derived from one seed color */
+@supports (color: oklch(from red l c h)){
+  :root{
+    --bg: oklch(from var(--seed) 0.968 0.014 h); --surface: oklch(from var(--seed) 0.993 0.006 h);
+    --ink: oklch(from var(--seed) 0.24 0.02 h); --muted: oklch(from var(--seed) 0.5 0.025 h);
+    --line: oklch(from var(--seed) 0.885 0.02 h); --chip: oklch(from var(--seed) 0.925 0.03 h);
+    --accent: oklch(from var(--seed) 0.5 max(0.02, min(c, 0.16)) h); --accent-ink: oklch(from var(--seed) 0.99 0.01 h);
+    --accent-soft: oklch(from var(--seed) 0.9 max(0.015, min(c, 0.07)) h); --accent-soft-ink: oklch(from var(--seed) 0.3 max(0.02, min(c, 0.1)) h);
+    --rule: oklch(from var(--seed) 0.87 0.045 h); --redrule: oklch(from var(--seed) 0.72 0.12 calc(h + 140));
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg: oklch(from var(--seed) 0.17 0.014 h); --surface: oklch(from var(--seed) 0.215 0.018 h);
+    --ink: oklch(from var(--seed) 0.93 0.012 h); --muted: oklch(from var(--seed) 0.7 0.025 h);
+    --line: oklch(from var(--seed) 0.31 0.022 h); --chip: oklch(from var(--seed) 0.27 0.03 h);
+    --accent: oklch(from var(--seed) 0.8 max(0.02, min(c, 0.12)) h); --accent-ink: oklch(from var(--seed) 0.22 0.05 h);
+    --accent-soft: oklch(from var(--seed) 0.33 max(0.015, min(c, 0.07)) h); --accent-soft-ink: oklch(from var(--seed) 0.9 0.04 h);
+    --rule: oklch(from var(--seed) 0.3 0.04 h); --redrule: oklch(from var(--seed) 0.48 0.1 calc(h + 140)); }}
+  :root[data-theme="dark"]{
+    --bg: oklch(from var(--seed) 0.17 0.014 h); --surface: oklch(from var(--seed) 0.215 0.018 h);
+    --ink: oklch(from var(--seed) 0.93 0.012 h); --muted: oklch(from var(--seed) 0.7 0.025 h);
+    --line: oklch(from var(--seed) 0.31 0.022 h); --chip: oklch(from var(--seed) 0.27 0.03 h);
+    --accent: oklch(from var(--seed) 0.8 max(0.02, min(c, 0.12)) h); --accent-ink: oklch(from var(--seed) 0.22 0.05 h);
+    --accent-soft: oklch(from var(--seed) 0.33 max(0.015, min(c, 0.07)) h); --accent-soft-ink: oklch(from var(--seed) 0.9 0.04 h);
+    --rule: oklch(from var(--seed) 0.3 0.04 h); --redrule: oklch(from var(--seed) 0.48 0.1 calc(h + 140)); }
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom,0px))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
+.brand{font-family:var(--f-card);font-size:1.7rem;font-weight:600;letter-spacing:-.01em}
+.brand i{font-weight:400;color:var(--muted)}
+.counts{font-size:.82rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.sync{display:inline-block;margin-top:2px;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}
+.sync.on{color:var(--good)} .sync.off{color:var(--hard)}
+.hdr-right{display:flex;align-items:center;gap:10px}
+:fullscreen{background:var(--bg)}
+:fullscreen .app{min-height:100%}
+::backdrop{background:var(--bg)}
+
+/* generic */
+h2{font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
+h2:first-child{margin-top:4px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 140px;min-width:0}
+label.f{display:grid;gap:5px;font-size:.82rem;color:var(--muted)}
+input[type=text],input[type=search],select,textarea{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 11px;font-size:16px;color:var(--ink)}
+textarea{min-height:120px;resize:vertical;line-height:1.4}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:10px 14px;font-weight:500}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+.btn.danger.solid{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.wide{width:100%}
+.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-size:.88rem}
+.hint{font-size:.84rem;color:var(--muted)}
+.seg{display:inline-flex;background:var(--chip);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:0;background:none;padding:7px 12px;border-radius:7px;font-size:.88rem;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;background:var(--chip);border-radius:99px;padding:2px 9px;color:var(--muted);white-space:nowrap}
+.chip.warn{color:var(--hard)}
+
+/* level pips */
+.pips{display:inline-flex;gap:3px;vertical-align:middle}
+.pips i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.pips i.on{background:var(--accent)}
+.lvrow{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* index card */
+.stage{display:grid;gap:14px}
+.card{position:relative;background:var(--surface);border-radius:6px;box-shadow:0 1px 0 var(--line),0 8px 24px -14px rgba(20,30,60,.35);
+  min-height:300px;padding:22px 20px 20px;cursor:pointer;user-select:none;
+  background-image:linear-gradient(var(--redrule),var(--redrule)),repeating-linear-gradient(to bottom,transparent 0,transparent 27px,var(--rule) 27px,var(--rule) 28px);
+  background-size:100% 2px,100% calc(100% - 92px);background-position:0 78px,0 92px;background-repeat:no-repeat}
+.card .meta{position:absolute;top:10px;right:14px;display:flex;gap:6px;align-items:center}
+.card .front{font-family:var(--f-card);font-size:clamp(1.5rem,6vw,2.1rem);font-weight:600;line-height:1.15;min-height:56px;display:flex;align-items:flex-end;padding-right:70px;overflow-wrap:anywhere;text-wrap:balance}
+.card .body{margin-top:26px;display:grid;gap:12px;font-size:1rem;line-height:28px}
+.card .answer{font-family:var(--f-card);font-size:1.3rem;font-weight:400}
+.card .note{color:var(--muted);font-size:.92rem;line-height:28px}
+.card .ctx{font-family:var(--f-card);font-style:italic;font-size:1rem;line-height:28px}
+.card mark{background:none;color:var(--accent);font-weight:600;font-style:normal}
+.card .tap{color:var(--muted);font-size:.86rem;text-align:center;margin-top:28px}
+.grades{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grades button{border-radius:10px;padding:13px 6px;font-weight:600;border:1px solid var(--line);background:var(--surface);display:grid;gap:2px}
+.grades small{font-weight:400;font-size:.72rem;color:var(--muted)}
+.g-bad{color:var(--bad)} .g-hard{color:var(--hard)} .g-good{color:var(--good)}
+.progress{height:4px;background:var(--line);border-radius:99px;overflow:hidden}
+.progress span{display:block;height:100%;background:var(--accent);transition:width .25s}
+.bigstat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.bigstat div{background:var(--bg);border-radius:9px;padding:10px 4px}
+.bigstat b{display:block;font-size:1.4rem;font-variant-numeric:tabular-nums}
+.bigstat span{font-size:.75rem;color:var(--muted)}
+
+/* dictionary */
+.list{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:11px 14px;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;width:100%}
+.item:first-child{border-top:0}
+.item .en{font-family:var(--f-card);font-weight:600;font-size:1.08rem;overflow-wrap:anywhere}
+.item .ru{color:var(--muted);font-size:.9rem;overflow-wrap:anywhere;grid-column:1}
+.item .lv{grid-column:2;grid-row:1 / span 2;display:grid;gap:4px;align-content:center}
+.empty{padding:28px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-family:var(--f-card);font-size:1.2rem;margin-bottom:4px}
+
+/* bottom nav */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.nav div{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--nav-h)}
+.nav button{border:0;background:none;color:var(--muted);font-size:.74rem;font-weight:500;display:grid;justify-items:center;align-content:center;gap:3px}
+.nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nav button[aria-current="page"]{color:var(--accent)}
+
+/* modal */
+.scrim{position:fixed;inset:0;z-index:30;background:rgba(10,14,24,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;box-sizing:border-box;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
+@media (min-width:600px){.scrim{align-items:center}.sheet{border-radius:16px}}
+.sheet h3{margin:0;font-family:var(--f-card);font-size:1.3rem;font-weight:600}
+.emojis{display:flex;flex-wrap:wrap;gap:6px}
+.emojis button{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-size:1.1rem}
+.emojis button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.setrow{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.setrow:last-child{border-bottom:0}
+.setrow .nm{flex:1;min-width:0;overflow-wrap:anywhere}
+.log{font-size:.84rem;color:var(--muted);white-space:pre-wrap;max-height:160px;overflow:auto}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:.88rem;max-width:calc(100% - 40px);box-sizing:border-box}
+ol.steps{margin:0;padding-left:20px;display:grid;gap:4px}
+
+/* ---- Material 3 shapes ---- */
+body,.app{transition:background-color .4s var(--ease),color .4s var(--ease)}
+.panel{border-radius:22px;border-color:transparent;background:var(--surface)}
+.list{border-radius:22px;border-color:transparent}
+.btn{border-radius:99px;padding:11px 18px;transition:transform .15s var(--ease),background-color .2s,box-shadow .2s}
+.btn:not(.primary):not(.danger){background:var(--accent-soft);border-color:transparent;color:var(--accent-soft-ink)}
+.btn.primary:not(:disabled):hover{box-shadow:0 2px 8px -2px color-mix(in srgb,var(--accent) 60%,transparent)}
+.btn:active:not(:disabled),.grades button:active,.emojis button:active{transform:scale(.96)}
+input[type=text],input[type=search],select,textarea{border-radius:14px;transition:border-color .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.seg{border-radius:99px;padding:4px}
+.seg button{border-radius:99px;transition:background-color .25s var(--ease),color .25s}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-soft-ink);box-shadow:none}
+.bigstat div{border-radius:16px;background:var(--chip)}
+.grades button{border-radius:18px;border-color:transparent;transition:transform .15s var(--ease)}
+.grades .g-bad{background:color-mix(in srgb,var(--bad) 14%,var(--surface))}
+.grades .g-hard{background:color-mix(in srgb,var(--hard) 14%,var(--surface))}
+.grades .g-good{background:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.item{transition:background-color .15s}
+.item:active{background:var(--chip)}
+.sheet{border-radius:28px 28px 0 0}
+@media (min-width:600px){.sheet{border-radius:28px}}
+.emojis button{border-radius:12px;transition:transform .15s var(--ease)}
+.emojis button[aria-pressed="true"]{background:var(--accent-soft)}
+.toast{border-radius:14px}
+.pips i{transition:background-color .3s,transform .3s var(--spring)}
+/* nav bar with active pill indicator */
+.nav{background:var(--surface);border-top:0}
+.nav button{gap:4px}
+.nav button svg{width:56px;height:30px;padding:4px 17px;box-sizing:border-box;border-radius:99px;transition:background-color .3s var(--ease),transform .3s var(--spring)}
+.nav button[aria-current="page"]{color:var(--accent-soft-ink)}
+.nav button[aria-current="page"] svg{background:var(--accent-soft);transform:scale(1.04)}
+/* theme swatches */
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.swatches button{width:44px;height:44px;border-radius:50%;border:0;padding:0;position:relative;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);transition:transform .2s var(--spring)}
+.swatches button[aria-pressed="true"]{transform:scale(1.08);box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--sw)}
+.swatches button.sys{background:conic-gradient(from 0deg,#e66,#eb5,#6c6,#5be,#86e,#e66)}
+.swatches button.sys::after{content:"A";position:absolute;inset:0;display:grid;place-items:center;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+
+/* ---- motion ---- */
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateX(36px) rotate(1.5deg)}to{opacity:1;transform:none}}
+@keyframes cardFlip{from{transform:perspective(900px) rotateY(-80deg);opacity:.4}to{transform:perspective(900px) rotateY(0);opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+.anim-view{animation:viewIn .32s var(--ease) both}
+.card.anim-next{animation:cardIn .38s var(--ease) both}
+.card.anim-flip{animation:cardFlip .42s var(--ease) both}
+.card.anim-flip .answer,.card.anim-flip .note,.card.anim-flip .ctx,.card.anim-flip .chip{animation:rise .35s var(--ease) both}
+.card.anim-flip .note{animation-delay:.06s}.card.anim-flip .ctx{animation-delay:.1s}
+.grades.anim-in button{animation:rise .3s var(--ease) both}
+.grades.anim-in button:nth-child(2){animation-delay:.04s}.grades.anim-in button:nth-child(3){animation-delay:.08s}
+.anim-view .item{animation:rise .3s var(--ease) both;animation-delay:calc(min(var(--i,0),12) * 22ms)}
+.anim-done .bigstat b{animation:pop .5s var(--spring) both}
+.anim-done .bigstat div:nth-child(2) b{animation-delay:.08s}.anim-done .bigstat div:nth-child(3) b{animation-delay:.16s}
+.scrim{animation:fade .2s ease both}
+.sheet{animation:sheetUp .32s var(--ease) both}
+.toast{animation:toastIn .25s var(--ease) both}
+.card{transition:box-shadow .25s}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Словник <i id="hdr-set"></i></div>
+    <div class="hdr-right">
+      <div class="counts"><span id="hdr-counts">—</span><br><span class="sync off" id="hdr-sync">на этом устройстве</span></div>
+    </div>
+  </header>
+  <main id="view"></main>
+</div>
+
+<nav class="nav" aria-label="Разделы"><div>
+  <button data-tab="review"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v10"/></svg>Повтор</button>
+  <button data-tab="words"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>Словарь</button>
+  <button data-tab="add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+  <button data-tab="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>Ещё</button>
+</div></nav>
+<div id="modal"></div>
+
+<script>
+(function(){
+"use strict";
+const LS_KEY = "slovnik.v1";
+const MAX_LV = 6;
+const MIN = 60e3, DAY = 864e5;
+const INTERVALS = [10*MIN, 1*DAY, 3*DAY, 7*DAY, 14*DAY, 30*DAY, 60*DAY];
+const EMOJIS = ["📕","📗","📘","📙","📚","📖","🎮","🎬","📰","🎧","✍️","🧠","⭐","🌍","🏛️","🔬","💼","🎵"];
+const DEFAULT_META = { sets: [], level: "B1–B2", dir: "en", sessionLen: 20, revSet: "all" };
+
+const S = {
+  words: new Map(), meta: structuredClone(DEFAULT_META),
+  mode: "local", localSource: "local", db: null, uid: null,
+  sample: null, downloads: null, capsReady: false,
+  tab: "review", session: null, dictQuery: "", dictSet: "all",
+  bulk: { running: false, confirm: null, log: "" }
+};
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const key = s => String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+const uid = () => "w" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const sid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+const plural = (n, a, b, c) => { const m10=n%10, m100=n%100; return n + " " + (m10===1&&m100!==11 ? a : m10>=2&&m10<=4&&(m100<10||m100>=20) ? b : c); };
+function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
+const num = (v, d=0) => typeof v === "number" && isFinite(v) ? v : d;
+const clampLv = v => Math.max(0, Math.min(MAX_LV, Math.round(num(v))));
+
+function normWord(w){
+  const lv = w.lv && typeof w.lv === "object" ? w.lv : {};
+  const due = w.due && typeof w.due === "object" ? w.due : {};
+  return {
+    id: String(w.id || uid()), en: String(w.en||"").trim(), ru: String(w.ru||"").trim(),
+    note: String(w.note||""), context: String(w.context||""), set: w.set ? String(w.set) : "",
+    lv: { en: clampLv(lv.en), ru: clampLv(lv.ru) }, due: { en: num(due.en), ru: num(due.ru) },
+    ok: num(w.ok), bad: num(w.bad), added: num(w.added, Date.now())
+  };
+}
+const plain = w => ({ en:w.en, ru:w.ru, note:w.note, context:w.context, set:w.set, lv:{...w.lv}, due:{...w.due}, ok:w.ok, bad:w.bad, added:w.added });
+const setById = id => S.meta.sets.find(s => s.id === id);
+const setLabel = id => { const s = setById(id); return s ? (s.emoji + " " + s.name) : "Без набора"; };
+const reviewable = w => !!w.ru;
+const pips = n => '<span class="pips">' + Array.from({length:MAX_LV},(_,i)=>`<i class="${i<n?"on":""}"></i>`).join("") + "</span>";
+
+/* ---------- Android app bridge ---------- */
+const NATIVE = (() => { try{ return window.SlovnikNative && window.SlovnikNative.isApp() ? window.SlovnikNative : null; }catch(e){ return null; } })();
+const OFFLINE = (() => { try{ return !!(NATIVE && NATIVE.isOffline()); }catch(e){ return false; } })();
+const nativeCall = (fn, ...a) => { try{ return NATIVE && typeof NATIVE[fn] === "function" ? NATIVE[fn](...a) : undefined; }catch(e){ return undefined; } };
+const nativePending = () => +(nativeCall("pendingCount") || 0);
+/* the app keeps a copy of the dictionary so it can open Словник without a network */
+function reportSnapshot(){
+  if(!NATIVE || !(OFFLINE || S.mode === "db")) return;
+  clearTimeout(reportSnapshot.t);
+  reportSnapshot.t = setTimeout(() => nativeCall("saveSnapshot", JSON.stringify({ meta:S.meta, seed:getSeed(), words:[...S.words.values()].map(w => ({ id:w.id, ...plain(w) })) })), 1200);
+}
+function loadOfflineSnapshot(){
+  let d = null; try{ d = JSON.parse(nativeCall("snapshot") || "null"); }catch(e){}
+  if(!d) return;
+  S.words = new Map(); (d.words || []).forEach(w => { const n = normWord(w); S.words.set(n.id, n); });
+  if(d.meta) S.meta = { ...structuredClone(DEFAULT_META), ...d.meta };
+  if(d.seed) applySeed(d.seed);
+}
+/* changes made in the offline copy, handed over by the app once Словник is online again */
+function mergeNativePending(){
+  if(!NATIVE || OFFLINE) return;
+  let p = null; try{ p = JSON.parse(nativeCall("takePending") || "null"); }catch(e){}
+  if(!p) return;
+  let n = 0; const ws = p.words || {};
+  for(const id of Object.keys(ws)){
+    const v = ws[id];
+    if(v) S.words.set(id, normWord({ ...v, id })); else S.words.delete(id);
+    markWord(id); n++;
+  }
+  if(p.meta){ S.meta = { ...structuredClone(DEFAULT_META), ...p.meta }; markMeta(); n++; }
+  nativeCall("clearPending");
+  if(n){ saveLocal(); toast("Перенёс в облако " + plural(n, "изменение", "изменения", "изменений") + ", сделанные без сети"); }
+}
+
+/* ---------- local cache ---------- */
+function loadLocal(){
+  try{
+    const d = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+    if(!d) return;
+    (d.words||[]).forEach(w => { const n = normWord(w); S.words.set(n.id, n); });
+    if(d.meta) S.meta = { ...structuredClone(DEFAULT_META), ...d.meta };
+    S.localSource = d.source || "local";
+  }catch(e){}
+}
+function saveLocal(){
+  clearTimeout(saveLocal.t);
+  saveLocal.t = setTimeout(() => {
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({ source:S.mode, meta:S.meta, words:[...S.words.values()].map(w=>({id:w.id,...plain(w)})) })); }catch(e){}
+  }, 250);
+  reportSnapshot();
+}
+
+/* ---------- cloud sync with an offline outbox ----------
+   Every change is first written to the outbox (kept in this browser), then sent.
+   An entry leaves the outbox only after the cloud confirmed it, so nothing is lost offline. */
+const OB_KEY = "slovnik.outbox";
+const OB = (() => { try{ const o = JSON.parse(localStorage.getItem(OB_KEY) || "null"); if(o && o.w) return o; }catch(e){} return { w:{}, meta:0 }; })();
+let obGen = Date.now();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const obCount = () => Object.keys(OB.w).length + (OB.meta ? 1 : 0);
+function obSave(){
+  clearTimeout(obSave.t);
+  obSave.t = setTimeout(() => { try{ localStorage.setItem(OB_KEY, JSON.stringify(OB)); }catch(e){} renderHeader(); }, 120);
+}
+const WQ = { pending: new Set(), running: new Set() };
+const dirty = k => WQ.pending.has(k) || WQ.running.has(k) || (k === "meta" ? !!OB.meta : (k.startsWith("w:") && (k.slice(2) in OB.w)));
+function schedule(k){ if(!S.db) return; WQ.pending.add(k); pump(); }
+function markWord(id){ OB.w[id] = ++obGen; obSave(); schedule("w:"+id); }
+function markMeta(){ OB.meta = ++obGen; obSave(); schedule("meta"); }
+function pump(){
+  while(WQ.running.size < 4){
+    const k = [...WQ.pending].find(x => !WQ.running.has(x));
+    if(!k) break;
+    WQ.pending.delete(k); WQ.running.add(k);
+    send(k).finally(() => { WQ.running.delete(k); pump(); });
+  }
+}
+async function send(k){
+  const isMeta = k === "meta", id = isMeta ? null : k.slice(2);
+  const gen = isMeta ? OB.meta : OB.w[id];
+  if(!gen) return;
+  const op = () => {
+    if(isMeta) return profileRef().set(structuredClone(S.meta));
+    const w = S.words.get(id);
+    return w ? wordsCol().doc(id).set(plain(w)) : wordsCol().doc(id).delete();
+  };
+  let err = null;
+  try{ await op(); }
+  catch(e){
+    err = e;
+    if(e && e.code === "unavailable"){ await sleep(600 + Math.random()*900); try{ await op(); err = null; }catch(e2){ err = e2; } }
+  }
+  if(err){ onSendError(err); return; }
+  if(isMeta){ if(OB.meta === gen) OB.meta = 0; } else if(OB.w[id] === gen) delete OB.w[id];
+  if(!obCount()) S.offlineToast = false;
+  obSave();
+}
+function onSendError(e){
+  const code = e && e.code;
+  if(code === "quota_exceeded"){ toast("Облачное хранилище заполнено. Удали часть слов, чтобы добавлять новые."); return; }
+  if(code === "invalid_argument" || code === "revoked"){ toast("Облако не приняло изменение. Оно осталось на этом устройстве."); return; }
+  if(!S.offlineToast){ S.offlineToast = true; toast("Нет связи. Изменения сохранены и отправятся сами."); }
+  clearTimeout(onSendError.t); onSendError.t = setTimeout(flushOutbox, 15000);
+}
+function flushOutbox(){
+  if(!S.db){ connectCloud(); return; }
+  Object.keys(OB.w).forEach(id => WQ.pending.add("w:"+id));
+  if(OB.meta) WQ.pending.add("meta");
+  pump();
+}
+window.addEventListener("online", () => flushOutbox());
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && obCount()) flushOutbox(); });
+setInterval(() => { if(obCount() && !WQ.running.size) flushOutbox(); }, 30000);
+
+const profileRef = () => S.db.doc("data/users/" + S.uid + "/profile");
+const wordsCol = () => profileRef().collection("words");
+function persistWord(w){ S.words.set(w.id, w); saveLocal(); if(OFFLINE) return offlinePut(w.id, w); markWord(w.id); }
+function removeWord(id){ S.words.delete(id); saveLocal(); if(OFFLINE) return offlinePut(id, null); markWord(id); }
+function persistMeta(){ saveLocal(); if(OFFLINE){ nativeCall("pendingMeta", JSON.stringify(S.meta)); renderHeader(); return; } markMeta(); }
+function offlinePut(id, w){ nativeCall("pendingPut", id, w ? JSON.stringify({ id, ...plain(w) }) : ""); renderHeader(); }
+
+/* ---------- capabilities & sync ---------- */
+async function initCaps(){
+  const c = window.claude;
+  if(!c || typeof c.use !== "function"){ S.capsReady = true; refresh(); return; }
+  const get = n => c.use(n).catch(() => null);
+  const [db, user, sample, downloads] = await Promise.all([get("db"), get("user"), get("sample"), get("downloads")]);
+  S.sample = sample; S.downloads = downloads; S.capsReady = true;
+  if(db && user){ S.cloud = { db, user }; await connectCloud(); }
+  refresh();
+}
+async function connectCloud(){
+  if(!S.cloud || S.db || connectCloud.busy) return;
+  connectCloud.busy = true;
+  try{
+    if(!S.uid){ try{ S.uid = await S.cloud.user.id(); }catch(e){} }
+    if(!S.uid) return;
+    S.db = S.cloud.db;
+    try{ await startSync(); mergeNativePending(); reportSnapshot(); }
+    catch(e){
+      S.db = null; S.mode = "local";
+      if(!S.offlineToast){ S.offlineToast = true; toast("Нет связи с облаком. Работаю на этом устройстве и синхронизирую, когда появится сеть."); }
+    }
+  } finally { connectCloud.busy = false; refresh(true); }
+}
+async function startSync(){
+  const [m, ws] = await Promise.all([profileRef().get(), wordsCol().get()]);
+  S.mode = "db";
+  if(!m.exists && ws.empty){
+    if(S.localSource !== "db" && (S.words.size || S.meta.sets.length)){
+      markMeta(); for(const id of S.words.keys()) markWord(id);
+      toast("Слова с этого устройства перенесены в облако.");
+    } else {
+      for(const id of [...S.words.keys()]) if(!(id in OB.w)) S.words.delete(id);
+      if(!OB.meta) S.meta = structuredClone(DEFAULT_META);
+    }
+  } else applyCloud(m, ws);
+  saveLocal();
+  if(!startSync.subscribed){
+    startSync.subscribed = true;
+    profileRef().onSnapshot(snap => { if(!dirty("meta") && snap.exists){ S.meta = { ...structuredClone(DEFAULT_META), ...snap.data() }; saveLocal(); refresh(true); } }, () => {});
+    wordsCol().onSnapshot(snap => { applyWords(snap); saveLocal(); refresh(true); }, () => {});
+  }
+  flushOutbox();
+}
+function applyCloud(m, ws){
+  if(m.exists && !dirty("meta")) S.meta = { ...structuredClone(DEFAULT_META), ...m.data() };
+  applyWords(ws);
+}
+function applyWords(snap){
+  const next = new Map();
+  snap.docs.forEach(d => { if(!dirty("w:"+d.id)) next.set(d.id, normWord({ id:d.id, ...d.data() })); });
+  for(const [id, w] of S.words){ if(dirty("w:"+id)) next.set(id, w); }
+  S.words = next;
+}
+
+/* ---------- SRS ---------- */
+function weightedTake(arr, n, weight){
+  const pool = arr.map(x => ({ x, w: Math.max(0.01, weight(x)) })), out = [];
+  while(out.length < n && pool.length){
+    const total = pool.reduce((a,b)=>a+b.w,0); let r = Math.random()*total, i = 0;
+    for(; i < pool.length-1; i++){ r -= pool[i].w; if(r <= 0) break; }
+    out.push(pool.splice(i,1)[0].x);
+  }
+  return out;
+}
+function poolFor(dir, setId){
+  return [...S.words.values()].filter(w => reviewable(w) && (setId==="all" || (setId==="none" ? !w.set : w.set===setId)));
+}
+function buildSession(){
+  const dir = S.meta.dir, n = S.meta.sessionLen, now = Date.now();
+  const pool = poolFor(dir, S.meta.revSet);
+  const due = pool.filter(w => w.due[dir] <= now), rest = pool.filter(w => w.due[dir] > now);
+  const keepForRest = Math.min(rest.length, Math.max(2, Math.round(n*0.2)));
+  const a = weightedTake(due, Math.min(due.length, n - keepForRest), w => (MAX_LV+1-w.lv[dir])**2);
+  const b = weightedTake(rest, Math.min(rest.length, n - a.length), w => (MAX_LV+1-w.lv[dir]) + 1);
+  const q = [...a, ...b].map(w => w.id);
+  for(let i = q.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [q[i],q[j]] = [q[j],q[i]]; }
+  return q;
+}
+function grade(w, dir, g){
+  const now = Date.now(); let lv = w.lv[dir];
+  if(g === "bad"){ lv = Math.max(0, lv-2); w.due[dir] = now + 10*MIN; w.bad++; }
+  else if(g === "hard"){ w.due[dir] = now + Math.max(10*MIN, INTERVALS[lv]/2); w.ok++; }
+  else { lv = Math.min(MAX_LV, lv+1); w.due[dir] = now + INTERVALS[lv]; w.ok++; }
+  w.lv[dir] = lv; persistWord(w);
+}
+function nextLabel(w, dir, g){
+  const lv = w.lv[dir];
+  const ms = g==="bad" ? 10*MIN : g==="hard" ? Math.max(10*MIN, INTERVALS[lv]/2) : INTERVALS[Math.min(MAX_LV, lv+1)];
+  return ms < DAY ? (ms < 60*MIN ? Math.round(ms/MIN)+" мин" : Math.round(ms/36e5)+" ч") : Math.round(ms/DAY)+" дн";
+}
+
+/* ---------- header ---------- */
+function renderHeader(){
+  const all = [...S.words.values()], now = Date.now(), dir = S.meta.dir;
+  const dueN = poolFor(dir, S.meta.revSet).filter(w => w.due[dir] <= now).length;
+  $("#hdr-counts").textContent = plural(all.length, "слово", "слова", "слов") + " · " + dueN + " к повтору";
+  const s = $("#hdr-sync");
+  const pending = obCount();
+  if(OFFLINE){ const n = nativePending(); s.textContent = "без сети" + (n ? " · " + plural(n, "изменение сохранено", "изменения сохранено", "изменений сохранено") : ""); s.className = "sync off"; }
+  else if(S.mode === "db" && !pending){ s.textContent = "синхронизировано"; s.className = "sync on"; }
+  else if(S.cloud && pending){ s.textContent = plural(pending, "изменение ждёт", "изменения ждут", "изменений ждут") + " сети"; s.className = "sync off"; }
+  else { s.textContent = S.capsReady ? "только на этом устройстве" : "подключаюсь…"; s.className = "sync off"; }
+  $("#hdr-set").textContent = "";
+  document.querySelectorAll(".nav button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === S.tab ? "page" : "false"));
+}
+function refresh(fromSync){
+  renderHeader();
+  if(fromSync && S.tab === "review" && S.session) return;
+  if(fromSync && (S.tab === "add" || $("#modal").firstChild)) return;
+  render();
+}
+function render(){
+  const v = $("#view");
+  ({ review: viewReview, words: viewWords, add: viewAdd, more: viewMore })[S.tab](v);
+  if(S.animView){
+    S.animView = false;
+    v.classList.remove("anim-view"); void v.offsetWidth; v.classList.add("anim-view");
+    clearTimeout(render.t); render.t = setTimeout(() => v.classList.remove("anim-view"), 700);
+  }
+}
+
+/* ---------- dynamic color ---------- */
+const SEEDS = ["#6750A4","#4A5BB8","#00799A","#00897B","#4C8C4A","#9A7B00","#C2581C","#B3261E","#B0417A","#5E6B7A"];
+const SEED_KEY = "slovnik.seed";
+function nativeAccent(){ try{ const a = NATIVE && NATIVE.accent(); return /^#[0-9a-f]{6}$/i.test(a || "") ? a : ""; }catch(e){ return ""; } }
+const sysAccent = () => !!nativeAccent() || (typeof CSS !== "undefined" && CSS.supports && CSS.supports("color", "AccentColor"));
+const dynColor = () => typeof CSS !== "undefined" && CSS.supports && CSS.supports("color", "oklch(from red l c h)");
+function getSeed(){ let v = null; try{ v = localStorage.getItem(SEED_KEY); }catch(e){} if(!v) v = sysAccent() ? "system" : "#4A5BB8"; if(v === "system" && !sysAccent()) v = "#4A5BB8"; return v; }
+function applySeed(v){
+  document.documentElement.style.setProperty("--seed", v === "system" ? (nativeAccent() || "AccentColor") : v);
+  try{ localStorage.setItem(SEED_KEY, v); }catch(e){}
+}
+
+function setOptions(sel, withAll){
+  return (withAll ? `<option value="all" ${sel==="all"?"selected":""}>Все наборы</option>` : "")
+    + `<option value="${withAll?"none":""}" ${(sel==="none"||(!withAll&&!sel))?"selected":""}>Без набора</option>`
+    + S.meta.sets.map(s => `<option value="${esc(s.id)}" ${sel===s.id?"selected":""}>${esc(s.emoji+" "+s.name)}</option>`).join("");
+}
+
+/* ---------- review ---------- */
+function viewReview(v){
+  if(S.session) return renderCard(v);
+  const dir = S.meta.dir, pool = poolFor(dir, S.meta.revSet), now = Date.now();
+  const dueN = pool.filter(w => w.due[dir] <= now).length;
+  const total = S.words.size;
+  const avg = pool.length ? (pool.reduce((a,w)=>a+w.lv[dir],0)/pool.length) : 0;
+  const canGoOnline = OFFLINE && !!nativeCall("online");
+  v.innerHTML = `
+    ${OFFLINE ? `<div class="panel" style="margin-bottom:6px;background:var(--accent-soft);color:var(--accent-soft-ink)">
+      <span><b>Без сети.</b> Открыта копия словаря с телефона. Можно добавлять слова и повторять, всё отправится в облако, когда вернёшься в сеть.</span>
+      ${canGoOnline ? `<button class="btn primary" id="go-online">Сеть есть, синхронизировать</button>` : ""}</div>` : ""}
+    <h2>Повторение</h2>
+    <div class="panel">
+      <div class="row">
+        <div class="seg" role="group" aria-label="Направление">
+          <button id="dir-en" aria-pressed="${dir==="en"}">EN → RU</button>
+          <button id="dir-ru" aria-pressed="${dir==="ru"}">RU → EN</button>
+        </div>
+        <select id="rev-set" class="grow" aria-label="Набор">${setOptions(S.meta.revSet, true)}</select>
+      </div>
+      <div class="bigstat">
+        <div><b>${dueN}</b><span>пора повторить</span></div>
+        <div><b>${pool.length}</b><span>в выборке</span></div>
+        <div><b>${avg.toFixed(1)}</b><span>средний уровень</span></div>
+      </div>
+      <button class="btn primary wide" id="start" ${pool.length?"":"disabled"}>Начать: ${Math.min(S.meta.sessionLen, pool.length)} карточек</button>
+      <p class="hint" style="margin:0">Чаще попадаются слова с низким уровнем и те, у которых подошёл срок. Выученные тоже иногда всплывают, чтобы не забывались. Уровни для EN → RU и RU → EN считаются отдельно.</p>
+    </div>
+    ${total ? "" : `<div class="empty" style="margin-top:14px"><b>Пока пусто</b>Добавь слова на вкладке «Добавить»: по одному или целым списком из книги.</div>`}`;
+  if($("#go-online")) $("#go-online").onclick = () => nativeCall("goOnline");
+  $("#dir-en").onclick = () => { S.meta.dir = "en"; persistMeta(); refresh(); };
+  $("#dir-ru").onclick = () => { S.meta.dir = "ru"; persistMeta(); refresh(); };
+  $("#rev-set").onchange = e => { S.meta.revSet = e.target.value; persistMeta(); refresh(); };
+  $("#start").onclick = () => {
+    const q = buildSession(); if(!q.length) return;
+    S.session = { q, i: 0, dir: S.meta.dir, flipped: false, res: { bad:0, hard:0, good:0 }, anim: "anim-next" };
+    render();
+  };
+}
+function highlight(text, term){
+  const t = esc(text); const k = String(term||"").trim();
+  if(!k) return t;
+  const re = new RegExp("(" + esc(k).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+  return t.replace(re, "<mark>$1</mark>");
+}
+function renderCard(v){
+  const s = S.session;
+  if(s.i >= s.q.length){
+    v.innerHTML = `
+      <h2>Готово</h2>
+      <div class="panel anim-done">
+        <div class="bigstat">
+          <div><b class="g-good">${s.res.good}</b><span>помню</span></div>
+          <div><b class="g-hard">${s.res.hard}</b><span>с трудом</span></div>
+          <div><b class="g-bad">${s.res.bad}</b><span>не помню</span></div>
+        </div>
+        <div class="row"><button class="btn primary grow" id="again">Ещё круг</button><button class="btn grow" id="done">К выбору</button></div>
+      </div>`;
+    $("#again").onclick = () => { const q = buildSession(); S.session = q.length ? { q, i:0, dir:S.meta.dir, flipped:false, res:{bad:0,hard:0,good:0}, anim:"anim-next" } : null; render(); };
+    $("#done").onclick = () => { S.session = null; S.animView = true; refresh(); };
+    return;
+  }
+  const anim = s.anim || ""; s.anim = "";
+  const w = S.words.get(s.q[s.i]);
+  if(!w){ s.i++; return renderCard(v); }
+  const dir = s.dir, front = dir === "en" ? w.en : w.ru, back = dir === "en" ? w.ru : w.en;
+  const showCtxFront = dir === "en" && w.context;
+  v.innerHTML = `
+    <div class="stage">
+      <div class="row" style="justify-content:space-between">
+        <button class="link" id="quit">Закончить</button>
+        <span class="hint" style="font-variant-numeric:tabular-nums">${s.i+1} / ${s.q.length} · ${dir==="en"?"EN → RU":"RU → EN"}</span>
+      </div>
+      <div class="progress"><span style="width:${(s.i/s.q.length)*100}%"></span></div>
+      <div class="card ${anim}" id="card" role="button" tabindex="0" aria-label="${s.flipped?"Карточка":"Показать ответ"}">
+        <div class="meta">${pips(w.lv[dir])}</div>
+        <div class="front">${esc(front)}</div>
+        <div class="body">
+          ${showCtxFront ? `<div class="ctx">${highlight(w.context, w.en)}</div>` : ""}
+          ${s.flipped ? `
+            <div class="answer">${esc(back)}</div>
+            ${w.note ? `<div class="note">${esc(w.note)}</div>` : ""}
+            ${!showCtxFront && w.context ? `<div class="ctx">${highlight(w.context, w.en)}</div>` : ""}
+            <div><span class="chip">${esc(setLabel(w.set))}</span></div>
+          ` : `<div class="tap">Вспомни ${dir==="en"?"перевод":"английский вариант"} и нажми на карточку</div>`}
+        </div>
+      </div>
+      ${s.flipped ? `<div class="grades ${anim === "anim-flip" ? "anim-in" : ""}">
+        <button class="g-bad" data-g="bad">Не помню<small>${nextLabel(w,dir,"bad")}</small></button>
+        <button class="g-hard" data-g="hard">С трудом<small>${nextLabel(w,dir,"hard")}</small></button>
+        <button class="g-good" data-g="good">Помню<small>${nextLabel(w,dir,"good")}</small></button>
+      </div>` : `<button class="btn primary wide" id="show">Показать ответ</button>`}
+    </div>`;
+  const flip = () => { if(!s.flipped){ s.flipped = true; s.anim = "anim-flip"; render(); } };
+  $("#card").onclick = flip;
+  $("#card").onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); } };
+  if($("#show")) $("#show").onclick = flip;
+  v.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
+    grade(w, dir, b.dataset.g); s.res[b.dataset.g]++; s.i++; s.flipped = false; s.anim = "anim-next"; renderHeader(); render();
+  });
+  $("#quit").onclick = () => { S.session = null; S.animView = true; refresh(); };
+}
+
+/* ---------- dictionary ---------- */
+function viewWords(v){
+  const q = key(S.dictQuery);
+  let list = [...S.words.values()].filter(w => S.dictSet==="all" || (S.dictSet==="none" ? !w.set : w.set===S.dictSet));
+  if(q) list = list.filter(w => key(w.en).includes(q) || key(w.ru).includes(q) || key(w.note).includes(q));
+  list.sort((a,b) => (reviewable(a)?1:0) - (reviewable(b)?1:0) || (a.lv.en+a.lv.ru) - (b.lv.en+b.lv.ru) || Math.min(a.lv.en,a.lv.ru) - Math.min(b.lv.en,b.lv.ru) || b.added - a.added);
+  v.innerHTML = `
+    <h2>Словарь</h2>
+    <div class="row" style="margin-bottom:10px">
+      <input type="search" id="dq" class="grow" placeholder="Поиск по слову или переводу" value="${esc(S.dictQuery)}">
+      <select id="dset" class="grow" aria-label="Набор">${setOptions(S.dictSet, true)}</select>
+    </div>
+    <p class="hint" style="margin:0 0 10px">${plural(list.length, "запись", "записи", "записей")}, сначала наименее выученные (по сумме обоих направлений).</p>
+    <div class="list" id="dlist">
+      ${list.length ? list.slice(0, 400).map((w, i) => `
+        <button class="item" style="--i:${i}" data-id="${esc(w.id)}">
+          <span class="en">${esc(w.en)}</span>
+          <span class="lv">
+            <span class="lvrow">EN→RU ${pips(w.lv.en)}</span>
+            <span class="lvrow">RU→EN ${pips(w.lv.ru)}</span>
+          </span>
+          <span class="ru">${w.ru ? esc(w.ru) : '<span class="chip warn">нужен перевод</span>'}</span>
+        </button>`).join("") : `<div class="empty"><b>Ничего не найдено</b>${S.words.size ? "Попробуй другой запрос или набор." : "Словарь пока пуст."}</div>`}
+    </div>
+    ${list.length > 400 ? `<p class="hint">Показаны первые 400. Уточни поиск, чтобы найти остальные.</p>` : ""}`;
+  const dq = $("#dq");
+  dq.oninput = e => { S.dictQuery = e.target.value; clearTimeout(dq.t); dq.t = setTimeout(() => { const pos = dq.selectionStart; render(); const n = $("#dq"); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(_){} }, 200); };
+  $("#dset").onchange = e => { S.dictSet = e.target.value; render(); };
+  v.querySelectorAll(".item").forEach(b => b.onclick = () => openEdit(b.dataset.id));
+}
+
+/* ---------- modal ---------- */
+function openModal(html, mount){
+  const m = $("#modal");
+  m.innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  $("#scrim").onclick = e => { if(e.target.id === "scrim") closeModal(); };
+  mount && mount(m.querySelector(".sheet"));
+}
+function closeModal(){ $("#modal").innerHTML = ""; refresh(); }
+
+function wordForm(w, prefix){
+  return `
+    <label class="f">Английский<input type="text" id="${prefix}en" value="${esc(w.en)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="f">Предложение из текста (необязательно)<textarea id="${prefix}ctx" style="min-height:60px">${esc(w.context)}</textarea></label>
+    <label class="f">Перевод<input type="text" id="${prefix}ru" value="${esc(w.ru)}" autocomplete="off"></label>
+    <label class="f">Заметка<textarea id="${prefix}note" style="min-height:60px">${esc(w.note)}</textarea></label>
+    <label class="f">Набор<select id="${prefix}set">${setOptions(w.set, false)}</select></label>`;
+}
+function readForm(prefix){
+  return { en: $("#"+prefix+"en").value.trim(), context: $("#"+prefix+"ctx").value.trim(), ru: $("#"+prefix+"ru").value.trim(),
+           note: $("#"+prefix+"note").value.trim(), set: $("#"+prefix+"set").value };
+}
+function openEdit(id){
+  const w = S.words.get(id); if(!w) return;
+  openModal(`
+    <h3>Карточка</h3>
+    ${wordForm(w, "e-")}
+    <div class="lvrow">EN→RU ${pips(w.lv.en)} &nbsp; RU→EN ${pips(w.lv.ru)} &nbsp; верно ${w.ok} · ошибок ${w.bad}</div>
+    ${S.sample ? `<button class="link" id="e-tr" style="justify-self:start">Перевести заново с Claude</button>` : ""}
+    <div class="row"><button class="btn primary grow" id="e-save">Сохранить</button><button class="btn grow" id="e-cancel">Отмена</button></div>
+    <div class="row" id="e-danger"><button class="link" id="e-reset">Сбросить прогресс слова</button><span style="flex:1"></span><button class="btn danger" id="e-del">Удалить</button></div>`,
+  () => {
+    $("#e-cancel").onclick = closeModal;
+    $("#e-save").onclick = () => {
+      const f = readForm("e-"); if(!f.en){ toast("Английское поле не может быть пустым."); return; }
+      Object.assign(w, f); persistWord(w); closeModal(); toast("Сохранено");
+    };
+    $("#e-reset").onclick = () => { w.lv = {en:0,ru:0}; w.due = {en:0,ru:0}; w.ok = 0; w.bad = 0; persistWord(w); closeModal(); toast("Прогресс слова сброшен"); };
+    $("#e-del").onclick = () => {
+      $("#e-danger").innerHTML = `<span class="hint grow">Удалить «${esc(w.en)}»?</span><button class="btn danger solid" id="e-del2">Да, удалить</button>`;
+      $("#e-del2").onclick = () => { removeWord(w.id); closeModal(); toast("Удалено"); };
+    };
+    if($("#e-tr")) $("#e-tr").onclick = () => quickTranslate("e-", $("#e-tr"));
+  });
+}
+
+/* ---------- Claude translation ---------- */
+function buildPrompt(lines, sourceName){
+  return "Ты помогаешь изучающему английский (родной язык русский, уровень " + S.meta.level + ") разобрать слова и фразы, которые он выписал"
+    + (sourceName ? " из источника «" + sourceName + "»" : " при чтении") + ".\n\n"
+    + "Каждая строка ниже — слово, фраза или предложение. Если в строке есть « | », то слева выписанное слово или фраза, а справа предложение из текста, где оно встретилось: используй его, чтобы выбрать правильное значение, и верни это предложение в поле context. Иначе context — пустая строка.\n\n"
+    + "Для каждой записи:\n"
+    + "- en: слово или фраза как в строке (исправь только явную опечатку).\n"
+    + "- ru: точный естественный перевод на русский. Если слово многозначное и контекста нет, дай 2–3 главных значения через «; ».\n"
+    + "- note: почти всегда короткая полезная заметка, одно предложение до 20 слов. Что в неё писать: для идиомы объясни образ, на котором она построена; ложного друга переводчика явно отметь как ложного друга; укажи регистр, если он не нейтральный (книжное, формальное, разговорное, устаревшее, сленг); полезную грамматическую конструкцию кратко разбери; если строка похожа на опечатку или ошибку распознавания текста, напиши вероятный правильный вариант. Оставляй note пустым только для простых общеупотребимых слов без подводных камней.\n"
+    + "- Если строка — длинное составное предложение, верни И это предложение целиком отдельной записью, И дополнительно отдельные самостоятельные обороты из него (устойчивые сочетания, идиомы, конструкции, которые полезно выучить отдельно) отдельными записями. Короткие строки не разбивай.\n\n"
+    + "Ответь только JSON-массивом объектов вида {\"en\":\"...\",\"ru\":\"...\",\"note\":\"...\",\"context\":\"...\"} без пояснений вокруг.\n\nСтроки:\n"
+    + lines.map((l, i) => (i+1) + ". " + l).join("\n");
+}
+async function translateLines(lines, sourceName){
+  const res = await S.sample.json(buildPrompt(lines, sourceName), { modelTier: "default" });
+  const arr = Array.isArray(res) ? res : (res && Array.isArray(res.items) ? res.items : []);
+  return arr.filter(x => x && typeof x.en === "string" && x.en.trim())
+            .map(x => ({ en: x.en.trim(), ru: String(x.ru||"").trim(), note: String(x.note||"").trim(), context: String(x.context||"").trim() }));
+}
+const FATAL = new Set(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","session_expired"]);
+function sampleErrText(e){
+  const c = e && e.code;
+  if(c === "not_granted") return "Доступ к Claude для этой страницы не разрешён.";
+  if(c === "rate_limited") return "Слишком много запросов или исчерпан лимит Claude. Попробуй позже.";
+  if(c === "session_expired") return "Нужно заново войти в Claude.";
+  if(c === "invalid_json") return "Claude ответил в неожиданном формате.";
+  if(FATAL.has(c)) return "Автоперевод сейчас недоступен.";
+  return "Ошибка связи с Claude.";
+}
+async function quickTranslate(prefix, btn){
+  const en = $("#"+prefix+"en").value.trim(); if(!en){ toast("Сначала впиши английское слово."); return; }
+  const ctx = $("#"+prefix+"ctx").value.trim();
+  const setId = $("#"+prefix+"set").value; const src = setById(setId);
+  const old = btn.textContent; btn.disabled = true; btn.textContent = "Claude думает…";
+  try{
+    const items = await translateLines([ctx ? en + " | " + ctx : en], src && src.name);
+    const it = items.find(x => key(x.en) === key(en)) || items[0];
+    if(!it){ toast("Claude не вернул перевод."); }
+    else { $("#"+prefix+"ru").value = it.ru; $("#"+prefix+"note").value = it.note; if(!ctx && it.context) $("#"+prefix+"ctx").value = it.context; }
+  }catch(e){ toast(sampleErrText(e)); }
+  btn.disabled = false; btn.textContent = old;
+}
+
+/* ---------- add ---------- */
+function parseLines(raw){
+  const seen = new Set(), out = [];
+  raw.split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim()).filter(Boolean)
+     .forEach(l => { const k = key(l); if(!seen.has(k)){ seen.add(k); out.push(l); } });
+  return out;
+}
+function viewAdd(v){
+  const sampleOk = !!S.sample, b = S.bulk;
+  const lastSet = S.meta.lastSet || "";
+  v.innerHTML = `
+    <h2>Списком</h2>
+    <div class="panel">
+      <label class="f">По одному слову или фразе в строке. Можно добавить предложение из книги через « | »
+        <textarea id="b-text" placeholder="a bone of contention&#10;to fend off | She fended off the questions with a smile.&#10;eerie" ${b.running?"disabled":""}>${esc(b.text||"")}</textarea>
+      </label>
+      <label class="f">Набор<select id="b-set">${setOptions(lastSet, false)}</select></label>
+      <div class="row"><button class="link" id="b-sets">Управлять наборами</button></div>
+      <div id="b-action">
+        ${!S.capsReady ? `<p class="hint">Проверяю, доступен ли автоперевод…</p>`
+          : !sampleOk ? `<p class="hint">${OFFLINE ? "Без сети автоперевод недоступен. Добавляй слова вручную ниже, перевести их можно позже." : "Автоперевод работает, когда приложение открыто через Claude. Сейчас можно добавлять слова вручную ниже."}</p>`
+          : b.running ? `<p class="hint">Идёт разбор…</p>`
+          : b.confirm ? `<div class="panel" style="background:var(--bg)"><b>${plural(b.confirm.lines.length, "строка", "строки", "строк")} → ${plural(b.confirm.chunks, "запрос", "запроса", "запросов")} к Claude.</b><span class="hint">Уже существующие слова пропущу. Каждый запрос занимает от нескольких секунд до минуты.</span><div class="row"><button class="btn primary grow" id="b-go">Разобрать</button><button class="btn grow" id="b-no">Отмена</button></div></div>`
+          : `<button class="btn primary wide" id="b-check">Разобрать с Claude</button>`}
+      </div>
+      ${b.log ? `<div class="log" id="b-log">${esc(b.log)}</div>` : ""}
+    </div>
+
+    <h2>Одно слово</h2>
+    <div class="panel" id="single">
+      ${wordForm({ en:"", ru:"", note:"", context:"", set:lastSet }, "a-")}
+      <div class="row">
+        ${sampleOk ? `<button class="btn grow" id="a-tr">Перевести с Claude</button>` : ""}
+        <button class="btn primary grow" id="a-save">Добавить</button>
+      </div>
+    </div>`;
+  const ta = $("#b-text");
+  ta.oninput = () => { S.bulk.text = ta.value; if(S.bulk.confirm){ S.bulk.confirm = null; render(); $("#b-text").focus(); } };
+  $("#b-set").onchange = e => { S.meta.lastSet = e.target.value; persistMeta(); };
+  $("#b-sets").onclick = openSets;
+  if($("#b-check")) $("#b-check").onclick = () => {
+    const lines = parseLines(ta.value); if(!lines.length){ toast("Список пуст."); return; }
+    S.bulk.confirm = { lines, chunks: Math.ceil(lines.length/10) }; render();
+  };
+  if($("#b-no")) $("#b-no").onclick = () => { S.bulk.confirm = null; render(); };
+  if($("#b-go")) $("#b-go").onclick = () => runBulk(S.bulk.confirm.lines, $("#b-set").value);
+  if($("#a-tr")) $("#a-tr").onclick = () => quickTranslate("a-", $("#a-tr"));
+  $("#a-set").onchange = e => { S.meta.lastSet = e.target.value; persistMeta(); };
+  $("#a-save").onclick = () => {
+    const f = readForm("a-"); if(!f.en){ toast("Впиши английское слово."); return; }
+    if([...S.words.values()].some(w => key(w.en) === key(f.en))){ toast("Такое слово уже есть в словаре."); return; }
+    persistWord(normWord({ id: uid(), ...f, added: Date.now() }));
+    toast(f.ru ? "Добавлено" : "Добавлено. Без перевода слово не попадёт в повторение."); render();
+  };
+}
+async function runBulk(lines, setId){
+  const b = S.bulk; b.running = true; b.confirm = null; b.log = "";
+  const src = setById(setId), log = s => { b.log += s + "\n"; const el = $("#b-log"); if(el){ el.textContent = b.log; el.scrollTop = 1e6; } };
+  render(); log("Начинаю: " + plural(lines.length, "строка", "строки", "строк"));
+  const existing = new Set([...S.words.values()].map(w => key(w.en)));
+  let added = 0, skipped = 0, manual = 0, done = 0;
+  const chunks = []; for(let i = 0; i < lines.length; i += 10) chunks.push(lines.slice(i, i+10));
+  let stoppedAt = -1;
+  for(let c = 0; c < chunks.length; c++){
+    log(`Запрос ${c+1} из ${chunks.length}…`);
+    try{
+      const items = await translateLines(chunks[c], src && src.name);
+      const returned = new Set();
+      for(const it of items){
+        returned.add(key(it.en));
+        if(existing.has(key(it.en))){ skipped++; continue; }
+        existing.add(key(it.en));
+        persistWord(normWord({ id: uid(), ...it, set: setId, added: Date.now() })); added++;
+      }
+      for(const l of chunks[c]){
+        const en = l.split(" | ")[0].trim();
+        if(!returned.has(key(en)) && ![...returned].some(r => r.includes(key(en)) || key(en).includes(r)) && !existing.has(key(en))){
+          existing.add(key(en)); manual++;
+          persistWord(normWord({ id: uid(), en, context: (l.split(" | ")[1]||"").trim(), ru:"", note:"Не переведено: отредактируй вручную.", set:setId, added:Date.now() }));
+        }
+      }
+    }catch(e){
+      if(FATAL.has(e && e.code) || (e && e.code) === "rate_limited"){ log(sampleErrText(e) + " Остановлено."); stoppedAt = c; break; }
+      log(sampleErrText(e) + " Строки из этого запроса добавлены без перевода.");
+      for(const l of chunks[c]){
+        const en = l.split(" | ")[0].trim(); if(existing.has(key(en))){ skipped++; continue; }
+        existing.add(key(en)); manual++;
+        persistWord(normWord({ id: uid(), en, context: (l.split(" | ")[1]||"").trim(), ru:"", note:"Не переведено: отредактируй вручную.", set:setId, added:Date.now() }));
+      }
+    }
+    done = c + 1; renderHeader();
+  }
+  const left = stoppedAt >= 0 ? chunks.slice(stoppedAt).flat() : [];
+  b.text = left.join("\n");
+  log(`Готово. Добавлено: ${added}. Уже были: ${skipped}. Без перевода: ${manual}.` + (left.length ? ` Не обработано строк: ${left.length}, они остались в поле.` : ""));
+  b.running = false; render();
+}
+
+/* ---------- sets ---------- */
+function openSets(){
+  let pick = EMOJIS[0], editing = null;
+  const draw = sheet => {
+    const counts = {}; for(const w of S.words.values()) counts[w.set||""] = (counts[w.set||""]||0) + 1;
+    sheet.innerHTML = `
+      <h3>Наборы</h3>
+      <p class="hint" style="margin:0">Книга, сериал, статья, курс: всё, откуда приходят слова.</p>
+      <div>${S.meta.sets.length ? S.meta.sets.map(s => `
+        <div class="setrow"><span>${esc(s.emoji)}</span><span class="nm">${esc(s.name)} <span class="hint">· ${counts[s.id]||0}</span></span>
+          <button class="link" data-edit="${esc(s.id)}">Изменить</button><button class="link" data-del="${esc(s.id)}" style="color:var(--bad)">Удалить</button></div>`).join("")
+        : `<p class="hint">Наборов пока нет.</p>`}</div>
+      <div class="panel" style="background:var(--bg)">
+        <b>${editing ? "Изменить набор" : "Новый набор"}</b>
+        <input type="text" id="s-name" placeholder="Например, The Night Circus" value="${esc(editing ? editing.name : "")}">
+        <div class="emojis">${EMOJIS.map(e => `<button data-e="${e}" aria-pressed="${e===pick}">${e}</button>`).join("")}</div>
+        <div class="row"><button class="btn primary grow" id="s-save">${editing ? "Сохранить" : "Создать"}</button>${editing ? `<button class="btn grow" id="s-cancel">Отмена</button>` : ""}</div>
+      </div>
+      <div id="s-confirm"></div>
+      <button class="btn wide" id="s-close">Готово</button>`;
+    sheet.querySelectorAll("[data-e]").forEach(b => b.onclick = () => { pick = b.dataset.e; sheet.querySelectorAll("[data-e]").forEach(x => x.setAttribute("aria-pressed", x.dataset.e === pick)); });
+    sheet.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editing = setById(b.dataset.edit); pick = editing.emoji; draw(sheet); });
+    sheet.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      const s = setById(b.dataset.del), n = counts[s.id]||0;
+      $("#s-confirm").innerHTML = `<div class="panel"><span>Удалить набор «${esc(s.name)}»? ${n ? plural(n,"слово останется","слова останутся","слов останутся") + " в словаре без набора." : ""}</span><div class="row"><button class="btn danger solid grow" id="s-del2">Удалить набор</button><button class="btn grow" id="s-del-no">Отмена</button></div></div>`;
+      $("#s-del-no").onclick = () => { $("#s-confirm").innerHTML = ""; };
+      $("#s-del2").onclick = () => {
+        S.meta.sets = S.meta.sets.filter(x => x.id !== s.id);
+        if(S.meta.revSet === s.id) S.meta.revSet = "all"; if(S.meta.lastSet === s.id) S.meta.lastSet = "";
+        persistMeta(); for(const w of S.words.values()) if(w.set === s.id){ w.set = ""; persistWord(w); }
+        draw(sheet);
+      };
+    });
+    $("#s-save").onclick = () => {
+      const name = $("#s-name").value.trim(); if(!name){ toast("Впиши название."); return; }
+      if(S.meta.sets.some(x => key(x.name) === key(name) && x !== editing)){ toast("Такой набор уже есть."); return; }
+      if(editing){ editing.name = name; editing.emoji = pick; } else S.meta.sets.push({ id: sid(), name, emoji: pick });
+      editing = null; persistMeta(); draw(sheet);
+    };
+    if($("#s-cancel")) $("#s-cancel").onclick = () => { editing = null; draw(sheet); };
+    $("#s-close").onclick = closeModal;
+  };
+  openModal("", draw);
+}
+
+/* ---------- more: backup, settings, install ---------- */
+function viewMore(v){
+  v.innerHTML = `
+    <h2>Наборы</h2>
+    <div class="panel"><span>${S.meta.sets.length ? S.meta.sets.map(s => esc(s.emoji + " " + s.name)).join(" · ") : "Пока нет наборов."}</span><button class="btn" id="m-sets">Управлять наборами</button></div>
+
+    <h2>Цвет оформления</h2>
+    <div class="panel">
+      ${dynColor() ? `
+      <div class="swatches" role="group" aria-label="Цвет">
+        ${sysAccent() ? `<button class="sys" data-seed="system" aria-pressed="${getSeed()==="system"}" aria-label="Системный цвет" title="Системный цвет"></button>` : ""}
+        ${SEEDS.map(c => `<button data-seed="${c}" style="--sw:${c}" aria-pressed="${getSeed()===c}" aria-label="Цвет ${c}"></button>`).join("")}
+      </div>
+      <p class="hint" style="margin:0">${sysAccent() ? "Кружок с буквой A берёт акцентный цвет, который отдаёт браузер. Если он совпадает с Material You на телефоне, тема подстроится под обои." : "Этот браузер не сообщает системный цвет, поэтому выбери вручную."} Вся палитра строится из одного цвета, как в Material You.</p>`
+      : `<p class="hint" style="margin:0">Этот браузер не умеет строить палитру из цвета. Обнови его, чтобы появился выбор цвета.</p>`}
+    </div>
+
+    <h2>Настройки</h2>
+    <div class="panel">
+      <label class="f">Твой уровень английского (влияет на заметки от Claude)
+        <select id="m-level">${["A2","B1","B1–B2","B2","B2–C1","C1"].map(l => `<option ${l===S.meta.level?"selected":""}>${l}</option>`).join("")}</select></label>
+      <label class="f">Карточек за подход
+        <select id="m-len">${[10,20,30,50].map(n => `<option value="${n}" ${n===S.meta.sessionLen?"selected":""}>${n}</option>`).join("")}</select></label>
+    </div>
+
+    <h2>Резервная копия</h2>
+    <div class="panel">
+      <p class="hint" style="margin:0">JSON со всеми словами, наборами и прогрессом. Импорт понимает и файлы из «Кодекса Тейвата».</p>
+      <div class="row">
+        <button class="btn grow" id="m-exp">Экспорт JSON</button>
+        <button class="btn grow" id="m-imp">Импорт JSON</button>
+        <button class="btn grow" id="m-show">Показать JSON</button>
+        <input type="file" id="m-file" accept="application/json,.json" hidden>
+      </div>
+      <div id="m-out"></div>
+      <div id="m-reset"><button class="btn danger wide" id="m-reset-btn">Сбросить всё</button></div>
+    </div>
+
+    <h2>Как приложение на телефоне</h2>
+    <div class="panel">
+      <ol class="steps">
+        <li>Открой ссылку в браузере телефона, будучи залогиненным в Claude, и добавь её на главный экран через меню браузера.</li>
+        <li>Для быстрого добавления слов сделай второй ярлык: та же ссылка, но с <b>#add</b> в конце. Он откроется сразу на вкладке «Добавить». Есть ещё <b>#review</b> и <b>#words</b>.</li>
+      </ol>
+      ${NATIVE ? `<p style="margin:0"><span class="chip">${OFFLINE ? "Офлайн-копия в приложении «Словник»" : "Открыто в приложении «Словник», связь с ним есть"}</span></p>` : ""}
+      <p class="hint" style="margin:0">Во время повторения экран не гаснет. Если связь пропадёт, изменения сохранятся на устройстве и отправятся сами. Нужен интернет: слова хранятся в облаке Claude и синхронизируются между устройствами.</p>
+    </div>`;
+  $("#m-sets").onclick = openSets;
+  v.querySelectorAll("[data-seed]").forEach(b => b.onclick = () => {
+    applySeed(b.dataset.seed);
+    v.querySelectorAll("[data-seed]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  });
+  $("#m-level").onchange = e => { S.meta.level = e.target.value; persistMeta(); };
+  $("#m-len").onchange = e => { S.meta.sessionLen = +e.target.value; persistMeta(); renderHeader(); };
+  $("#m-exp").onclick = exportJson;
+  $("#m-imp").onclick = () => $("#m-file").click();
+  $("#m-show").onclick = () => showJson();
+  $("#m-file").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if(f) readImport(f); };
+  $("#m-reset-btn").onclick = () => {
+    $("#m-reset").innerHTML = `<div class="panel" style="background:var(--bg)"><span>Удалить ${plural(S.words.size,"слово","слова","слов")} и ${plural(S.meta.sets.length,"набор","набора","наборов")} вместе с прогрессом? Отменить это нельзя. Сначала можно сделать экспорт.</span><div class="row"><button class="btn danger solid grow" id="m-r2">Удалить всё</button><button class="btn grow" id="m-r-no">Отмена</button></div></div>`;
+    $("#m-r-no").onclick = () => render();
+    $("#m-r2").onclick = () => {
+      for(const id of [...S.words.keys()]) removeWord(id);
+      S.meta = { ...structuredClone(DEFAULT_META), level: S.meta.level, sessionLen: S.meta.sessionLen }; persistMeta();
+      S.session = null; toast("Всё удалено"); refresh();
+    };
+  };
+}
+function exportData(){ return JSON.stringify({ app:"slovnik", version:1, exported:new Date().toISOString(), meta:S.meta, words:[...S.words.values()].map(w => ({ id:w.id, ...plain(w) })) }, null, 2); }
+async function exportJson(){
+  const data = exportData(), name = "slovnik-" + new Date().toISOString().slice(0,10) + ".json";
+  if(S.downloads && !NATIVE){
+    try{ await S.downloads.save({ filename: name, data }); toast("Файл сохранён"); return; }
+    catch(e){ if(e && e.code === "declined") return; }
+  }
+  showJson(data, name);
+}
+function showJson(data, name){
+  data = data || exportData(); name = name || "slovnik-" + new Date().toISOString().slice(0,10) + ".json";
+  $("#m-out").innerHTML = `<label class="f">Скопируй и сохрани этот текст как ${esc(name)}<textarea id="m-json" readonly>${esc(data)}</textarea></label><button class="btn" id="m-copy">Скопировать</button>`;
+  $("#m-copy").onclick = async () => { const t = $("#m-json"); try{ await navigator.clipboard.writeText(t.value); toast("Скопировано"); }catch(e){ t.focus(); t.select(); } };
+}
+function fromForeign(parsed){
+  const meta = { sets: [] }, setByName = new Map();
+  const addSet = (name, emoji) => { const k = key(name); if(!k) return ""; if(!setByName.has(k)){ const s = { id: sid() + setByName.size, name: String(name), emoji: emoji || "📘" }; setByName.set(k, s); meta.sets.push(s); } return setByName.get(k).id; };
+  if(parsed.meta && Array.isArray(parsed.meta.sets)){ parsed.meta.sets.forEach(s => { if(s && s.id && s.name){ meta.sets.push({ id:String(s.id), name:String(s.name), emoji:String(s.emoji||"📘") }); setByName.set(key(s.name), meta.sets[meta.sets.length-1]); } }); }
+  (parsed.regions||[]).forEach(r => r && r.name && addSet(r.name, r.emoji));
+  const raw = Array.isArray(parsed) ? parsed : parsed.words;
+  const words = (raw||[]).map(w => {
+    if(!w) return null;
+    const en = w.en ?? w.english ?? w.word ?? w.front, ru = w.ru ?? w.russian ?? w.translation ?? w.back;
+    if(!en) return null;
+    if(w.lv && w.due) return normWord(w);
+    const revKey = Object.keys(w).find(k => /^(level|lvl)[_-]?(rev|reverse|ru|ruen|ru_en|ru2en)$/i.test(k) || /^(rev|reverse|ru)[_-]?(level|lvl)$/i.test(k));
+    const revDueKey = Object.keys(w).find(k => /due/i.test(k) && /(rev|reverse|ru)/i.test(k));
+    let set = "";
+    if(w.set && meta.sets.some(s => s.id === w.set)) set = w.set; else if(w.region || w.set) set = addSet(w.region || w.set);
+    return normWord({ id: w.id, en, ru, note: w.note || w.comment, context: w.context || w.example, set,
+      lv: { en: w.level, ru: revKey ? w[revKey] : 0 }, due: { en: w.nextDue, ru: revDueKey ? w[revDueKey] : 0 },
+      ok: w.correct ?? w.ok, bad: w.wrong ?? w.bad, added: w.addedAt ?? w.added });
+  }).filter(Boolean);
+  return { meta, words };
+}
+function readImport(file){
+  const r = new FileReader();
+  r.onload = () => {
+    let parsed; try{ parsed = JSON.parse(r.result); }catch(e){ toast("Файл не читается как JSON."); return; }
+    const { meta, words } = fromForeign(parsed);
+    if(!words.length){ toast("В файле не нашлось слов."); return; }
+    openModal(`
+      <h3>Импорт</h3>
+      <p style="margin:0">В файле ${plural(words.length,"слово","слова","слов")} и ${plural(meta.sets.length,"набор","набора","наборов")}.</p>
+      <button class="btn primary" id="i-merge">Добавить к текущим (дубли пропущу)</button>
+      <button class="btn danger" id="i-replace">Заменить весь словарь</button>
+      <button class="btn" id="i-cancel">Отмена</button>`, () => {
+      $("#i-cancel").onclick = closeModal;
+      $("#i-merge").onclick = () => {
+        const have = new Set([...S.words.values()].map(w => key(w.en)));
+        const idMap = {};
+        meta.sets.forEach(s => { const ex = S.meta.sets.find(x => key(x.name) === key(s.name)); if(ex) idMap[s.id] = ex.id; else { S.meta.sets.push(s); idMap[s.id] = s.id; } });
+        let n = 0;
+        words.forEach(w => { if(have.has(key(w.en))) return; have.add(key(w.en)); w.set = w.set ? (idMap[w.set] || "") : ""; if(S.words.has(w.id)) w.id = uid(); persistWord(w); n++; });
+        persistMeta(); closeModal(); toast("Добавлено " + plural(n,"слово","слова","слов"));
+      };
+      $("#i-replace").onclick = () => {
+        for(const id of [...S.words.keys()]) removeWord(id);
+        S.meta = { ...structuredClone(DEFAULT_META), level: S.meta.level, sessionLen: S.meta.sessionLen, sets: meta.sets };
+        const seen = new Set();
+        words.forEach(w => { if(seen.has(key(w.en))) return; seen.add(key(w.en)); persistWord(w); });
+        persistMeta(); S.session = null; closeModal(); toast("Словарь заменён");
+      };
+    });
+  };
+  r.readAsText(file);
+}
+
+/* ---------- app-like extras: fullscreen, wake lock, deep links ---------- */
+let wakeLock = null;
+async function holdScreen(on){
+  try{
+    if(on && !wakeLock && navigator.wakeLock && document.visibilityState === "visible"){ wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); }
+    if(!on && wakeLock){ const l = wakeLock; wakeLock = null; await l.release(); }
+  }catch(e){ wakeLock = null; }
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") holdScreen(!!S.session); });
+setInterval(() => holdScreen(!!S.session), 3000);
+const TABS = ["review","words","add","more"];
+function tabFromHash(){ const h = (location.hash || "").slice(1); return TABS.includes(h) ? h : null; }
+window.addEventListener("hashchange", () => { const t = tabFromHash(); if(t && t !== S.tab){ S.tab = t; S.animView = true; refresh(); } });
+
+/* ---------- boot ---------- */
+applySeed(getSeed());
+document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
+  if(S.tab === b.dataset.tab) return;
+  S.tab = b.dataset.tab; S.animView = true; refresh(); window.scrollTo(0,0);
+});
+S.tab = tabFromHash() || S.tab;
+loadLocal();
+if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); }
+else { refresh(); initCaps(); }
+})();
+</script>

@@ -7,6 +7,9 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,6 +23,7 @@ import android.view.WindowInsetsController;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.WebResourceError;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -29,7 +33,16 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -50,6 +63,8 @@ public class MainActivity extends Activity {
     /** claude.ai paths needed to sign in; everything else on claude.ai counts as "outside the artifact". */
     static final String[] AUTH_PREFIXES = { "/login", "/logout", "/magic-link", "/verify", "/api/", "/sso", "/oauth", "/cdn-cgi/" };
     static final int FILE_REQUEST = 41;
+    /** Origin of the offline copy of Словник bundled in the APK (never fetched from the network). */
+    static final String OFFLINE_BASE = "https://slovnik.local/index.html";
     static final long SAMPLE_EVERY_MS = 700;
 
     private WebView web;
@@ -61,6 +76,8 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private int statusColor = 0, navColor = 0;
     private int headerPx = 0;
+    private volatile boolean offline = false;
+    private final Object store = new Object();
 
     /** Top of the artifact frame in CSS px (= height of claude.ai's bar above it), or -1 when not on the artifact. */
     static final String MEASURE_JS =
@@ -119,8 +136,11 @@ public class MainActivity extends Activity {
             else Toast.makeText(this, "Скачать файл отсюда нельзя. Используй «Показать JSON» и скопируй текст.", Toast.LENGTH_LONG).show();
         });
 
-        if (state != null) web.restoreState(state);
-        if (state == null || web.getUrl() == null) web.loadUrl(urlFor(tabFrom(getIntent())));
+        if (state != null && state.getBoolean("offline", false)) loadOffline(null);
+        else {
+            if (state != null) web.restoreState(state);
+            if (state == null || web.getUrl() == null) open(tabFrom(getIntent()));
+        }
     }
 
     private String urlFor(String tab) {
@@ -141,8 +161,93 @@ public class MainActivity extends Activity {
         setIntent(intent);
         String tab = tabFrom(intent);
         if (tab == null) return;
+        if (offline) { loadOffline(tab); return; }
         String target = JSONObject.quote(urlFor(tab));
         web.evaluateJavascript("(function(){location.replace(" + target + ");location.reload();})()", null);
+    }
+
+    /* ---------- online / offline ---------- */
+
+    private void open(String tab) {
+        if (!isNetworkOk() && hasSnapshot()) loadOffline(tab);
+        else loadOnline(tab);
+    }
+
+    private void loadOnline(String tab) {
+        offline = false;
+        web.loadUrl(urlFor(tab));
+    }
+
+    private void loadOffline(String tab) {
+        offline = true;
+        headerPx = 0;
+        applyHeaderShift();
+        String page;
+        try (InputStream in = getAssets().open("slovnik.html")) {
+            page = new String(readAll(in), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Toast.makeText(this, "Нет сети, а офлайн-копия не открылась", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String html = "<!doctype html><html><head><meta charset=\"utf-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
+            + "<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
+            + "</head><body>" + page + "</body></html>";
+        web.loadDataWithBaseURL(OFFLINE_BASE + (tab != null ? "#" + tab : ""), html, "text/html", "utf-8", null);
+    }
+
+    private boolean isNetworkOk() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        if (cm == null) return true;
+        Network n = cm.getActiveNetwork();
+        if (n == null) return false;
+        NetworkCapabilities c = cm.getNetworkCapabilities(n);
+        return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    /* ---------- local copy of the dictionary + changes made offline ---------- */
+
+    private File snapFile() { return new File(getFilesDir(), "snapshot.json"); }
+    private File pendFile() { return new File(getFilesDir(), "pending.json"); }
+    private boolean hasSnapshot() { return snapFile().length() > 0; }
+
+    private static byte[] readAll(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        return out.toByteArray();
+    }
+
+    private static String readFile(File f) {
+        if (!f.exists()) return "";
+        try (FileInputStream in = new FileInputStream(f)) {
+            return new String(readAll(in), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    private static void writeFile(File f, String text) {
+        File tmp = new File(f.getPath() + ".tmp");
+        try (FileOutputStream out = new FileOutputStream(tmp)) {
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.getFD().sync();
+        } catch (IOException e) {
+            return;
+        }
+        if (!tmp.renameTo(f)) tmp.delete();
+    }
+
+    private JSONObject loadPending() {
+        String text = readFile(pendFile());
+        JSONObject o;
+        try { o = text.isEmpty() ? new JSONObject() : new JSONObject(text); }
+        catch (JSONException e) { o = new JSONObject(); }
+        try { if (o.optJSONObject("words") == null) o.put("words", new JSONObject()); }
+        catch (JSONException ignored) { }
+        return o;
     }
 
     /* ---------- hide claude.ai's bar: push the WebView up by its height ---------- */
@@ -262,6 +367,69 @@ public class MainActivity extends Activity {
         public boolean isApp() { return true; }
 
         @JavascriptInterface
+        public boolean isOffline() { return offline; }
+
+        @JavascriptInterface
+        public boolean online() { return isNetworkOk(); }
+
+        @JavascriptInterface
+        public void goOnline() { runOnUiThread(() -> loadOnline(null)); }
+
+        @JavascriptInterface
+        public void saveSnapshot(String json) {
+            if (json == null || json.isEmpty()) return;
+            synchronized (store) { writeFile(snapFile(), json); }
+        }
+
+        @JavascriptInterface
+        public String snapshot() {
+            synchronized (store) { return readFile(snapFile()); }
+        }
+
+        @JavascriptInterface
+        public void pendingPut(String id, String word) {
+            if (id == null || id.isEmpty()) return;
+            synchronized (store) {
+                try {
+                    JSONObject p = loadPending();
+                    p.getJSONObject("words").put(id, word == null || word.isEmpty() ? JSONObject.NULL : new JSONObject(word));
+                    writeFile(pendFile(), p.toString());
+                } catch (JSONException ignored) { }
+            }
+        }
+
+        @JavascriptInterface
+        public void pendingMeta(String meta) {
+            synchronized (store) {
+                try {
+                    JSONObject p = loadPending();
+                    p.put("meta", new JSONObject(meta));
+                    writeFile(pendFile(), p.toString());
+                } catch (JSONException | NullPointerException ignored) { }
+            }
+        }
+
+        @JavascriptInterface
+        public String takePending() {
+            synchronized (store) { return pendFile().exists() ? loadPending().toString() : ""; }
+        }
+
+        @JavascriptInterface
+        public void clearPending() {
+            synchronized (store) { pendFile().delete(); }
+        }
+
+        @JavascriptInterface
+        public int pendingCount() {
+            synchronized (store) {
+                if (!pendFile().exists()) return 0;
+                JSONObject p = loadPending();
+                JSONObject w = p.optJSONObject("words");
+                return (w == null ? 0 : w.length()) + (p.optJSONObject("meta") != null ? 1 : 0);
+            }
+        }
+
+        @JavascriptInterface
         public String accent() {
             if (Build.VERSION.SDK_INT < 31) return "";
             int c = getColor(android.R.color.system_accent1_500);
@@ -336,6 +504,11 @@ public class MainActivity extends Activity {
                 if (!onAuthPageBefore(view)) openExternal(u);
                 view.post(() -> view.loadUrl(START_URL));
             }
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (request.isForMainFrame() && !offline && hasSnapshot()) ui.post(() -> loadOffline(tabFrom(getIntent())));
         }
 
         @Override
@@ -417,7 +590,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
-        web.saveState(out);
+        out.putBoolean("offline", offline);
+        if (!offline) web.saveState(out);
     }
 
     @Override
@@ -425,6 +599,7 @@ public class MainActivity extends Activity {
         super.onResume();
         web.onResume();
         resumed = true;
+        if (offline && isNetworkOk()) loadOnline(null);
         ui.removeCallbacks(sampler);
         ui.postDelayed(sampler, 150);
     }
