@@ -2,6 +2,8 @@ package app.slovnik;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -15,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
 import android.view.HapticFeedbackConstants;
 import android.view.PixelCopy;
@@ -44,6 +47,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 import java.util.Arrays;
@@ -80,6 +84,9 @@ public class MainActivity extends Activity {
     private int statusColor = 0, navColor = 0;
     private int headerPx = 0;
     private volatile boolean offline = false;
+    /** Set by Словник itself (online or offline copy) once its script has started. */
+    private volatile boolean alive = false;
+    private boolean offlineFromAsset = false;
     private TextToSpeech tts;
     private volatile boolean ttsOk = false;
     private final Object store = new Object();
@@ -175,23 +182,52 @@ public class MainActivity extends Activity {
     /* ---------- online / offline ---------- */
 
     private void open(String tab) {
-        if (!isNetworkOk() && hasSnapshot()) loadOffline(tab);
+        if (!isNetworkOk()) loadOffline(tab);
         else loadOnline(tab);
     }
 
+    /**
+     * Watchdog for the online page: if Словник hasn't started (no pageAlive) and there is no network,
+     * or claude.ai keeps hanging, switch to the offline copy. Sign-in pages are left alone.
+     */
+    private final Runnable onlineWatch = new Runnable() {
+        int checks = 0;
+        @Override public void run() {
+            if (offline || alive || onAuthPage()) { checks = 0; return; }
+            checks++;
+            if (!isNetworkOk() || checks >= 4) { checks = 0; loadOffline(null); return; }
+            ui.postDelayed(this, 5000);
+        }
+    };
+
+    /** If the saved offline copy doesn't start, fall back to the copy bundled in the APK. */
+    private final Runnable offlineWatch = () -> {
+        if (offline && !alive && !offlineFromAsset) loadOffline(null, true);
+    };
+
     private void loadOnline(String tab) {
         offline = false;
+        alive = false;
+        ui.removeCallbacks(offlineWatch);
+        ui.removeCallbacks(onlineWatch);
         web.loadUrl(urlFor(tab));
+        ui.postDelayed(onlineWatch, 6000);
     }
 
-    private void loadOffline(String tab) {
+    private void loadOffline(String tab) { loadOffline(tab, false); }
+
+    private void loadOffline(String tab, boolean forceAsset) {
         offline = true;
+        alive = false;
+        ui.removeCallbacks(onlineWatch);
+        ui.removeCallbacks(offlineWatch);
         headerPx = 0;
         applyHeaderShift();
-        // Newest copy the online page handed over; the one bundled in the APK only covers the very first launch.
-        String page;
-        synchronized (store) { page = readFile(pageFile()); }
-        if (page.length() < 5000) {
+        // Newest copy the online page handed over; the one bundled in the APK covers the first launch and broken copies.
+        String page = "";
+        if (!forceAsset) synchronized (store) { page = readFile(pageFile()); }
+        offlineFromAsset = page.length() < 5000;
+        if (offlineFromAsset) {
             try (InputStream in = getAssets().open("slovnik.html")) {
                 page = new String(readAll(in), StandardCharsets.UTF_8);
             } catch (IOException e) {
@@ -204,6 +240,7 @@ public class MainActivity extends Activity {
             + "<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
             + "</head><body>" + page + "</body></html>";
         web.loadDataWithBaseURL(OFFLINE_BASE + (tab != null ? "#" + tab : ""), html, "text/html", "utf-8", null);
+        if (!offlineFromAsset) ui.postDelayed(offlineWatch, 4000);
     }
 
     private boolean isNetworkOk() {
@@ -379,6 +416,36 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean isOffline() { return offline; }
+
+        @JavascriptInterface
+        public void pageAlive() { alive = true; }
+
+        /** Saves a text file to the phone's Downloads folder. */
+        @JavascriptInterface
+        public boolean saveFile(String name, String content) {
+            if (name == null || content == null) return false;
+            String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+            try {
+                ContentResolver r = getContentResolver();
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
+                v.put(MediaStore.Downloads.MIME_TYPE, safe.endsWith(".json") ? "application/json" : "text/plain");
+                v.put(MediaStore.Downloads.IS_PENDING, 1);
+                Uri uri = r.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) return false;
+                try (OutputStream out = r.openOutputStream(uri)) {
+                    if (out == null) return false;
+                    out.write(content.getBytes(StandardCharsets.UTF_8));
+                }
+                v.clear();
+                v.put(MediaStore.Downloads.IS_PENDING, 0);
+                r.update(uri, v, null, null);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Сохранено в «Загрузки»: " + safe, Toast.LENGTH_LONG).show());
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
 
         @JavascriptInterface
         public boolean ttsReady() { return ttsOk; }
@@ -564,7 +631,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-            if (request.isForMainFrame() && !offline && hasSnapshot()) ui.post(() -> loadOffline(tabFrom(getIntent())));
+            if (request.isForMainFrame() && !offline) ui.post(() -> loadOffline(tabFrom(getIntent())));
         }
 
         @Override

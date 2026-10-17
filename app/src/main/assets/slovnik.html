@@ -220,6 +220,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 .toast{animation:toastIn .25s var(--ease) both}
 .card{transition:box-shadow .25s}
 
+.item.picked{background:var(--accent-soft)}
+.check{width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);box-sizing:border-box;display:block}
+.item.picked .check{border-color:var(--accent);background:var(--accent) radial-gradient(circle,var(--accent-ink) 0 3px,transparent 3.5px)}
+.selbar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));z-index:19;background:var(--surface);box-shadow:0 -6px 18px -10px rgba(0,0,0,.35);border-radius:22px 22px 0 0;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:grid;gap:10px;max-width:560px;margin:0 auto;box-sizing:border-box}
+.selbar ~ *{}
+#dlist:has(~ .selbar){margin-bottom:170px}
 .say{flex:none;width:36px;height:36px;border-radius:50%;border:0;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent-soft-ink);transition:transform .15s var(--ease)}
 .say:active{transform:scale(.9)}
 .say svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -256,12 +263,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 const PAGE_SOURCE = (() => {
   try{
     const me = document.currentScript;
-    const parts = [];
-    for(const n of document.body.childNodes){
-      if(n === me || n.nodeName === "SCRIPT") continue;
-      parts.push(n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? n.textContent : "");
-    }
-    return parts.join("") + "<script>" + me.textContent + "<\/script>";
+    const pick = sel => [...document.querySelectorAll(sel)];
+    const parts = [
+      ...pick("title").slice(0, 1),
+      ...pick('link[href*="fonts.googleapis.com"]'),
+      ...pick("style").filter(st => st.textContent.includes("--f-card")),
+      ...pick("body > .app, body > nav.nav, body > #modal")
+    ].map(n => n.outerHTML);
+    return parts.join("\n") + "<script>" + me.textContent + "<\/script>";
   }catch(e){ return ""; }
 })();
 const LS_KEY = "slovnik.v1";
@@ -323,7 +332,7 @@ function reportPage(){
 }
 function loadOfflineSnapshot(){
   let d = null; try{ d = JSON.parse(nativeCall("snapshot") || "null"); }catch(e){}
-  if(!d) return;
+  if(!d){ S.noSnapshot = true; return; }
   S.words = new Map(); (d.words || []).forEach(w => { const n = normWord(w); S.words.set(n.id, n); });
   if(d.meta) S.meta = { ...structuredClone(DEFAULT_META), ...d.meta };
   if(d.seed) applySeed(d.seed);
@@ -470,13 +479,13 @@ async function startSync(){
   saveLocal();
   if(!startSync.subscribed){
     startSync.subscribed = true;
-    profileRef().onSnapshot(snap => { if(!dirty("meta") && snap.exists){ S.meta = { ...structuredClone(DEFAULT_META), ...snap.data() }; saveLocal(); refresh(true); } }, () => {});
+    profileRef().onSnapshot(snap => { if(!dirty("meta") && snap.exists){ S.meta = { ...structuredClone(DEFAULT_META), ...structuredClone(snap.data()) }; saveLocal(); refresh(true); } }, () => {});
     wordsCol().onSnapshot(snap => { applyWords(snap); saveLocal(); refresh(true); }, () => {});
   }
   flushOutbox();
 }
 function applyCloud(m, ws){
-  if(m.exists && !dirty("meta")) S.meta = { ...structuredClone(DEFAULT_META), ...m.data() };
+  if(m.exists && !dirty("meta")) S.meta = { ...structuredClone(DEFAULT_META), ...structuredClone(m.data()) };
   applyWords(ws);
 }
 function applyWords(snap){
@@ -655,7 +664,7 @@ function viewReview(v){
   const canGoOnline = OFFLINE && !!nativeCall("online");
   v.innerHTML = `
     ${OFFLINE ? `<div class="panel" style="margin-bottom:6px;background:var(--accent-soft);color:var(--accent-soft-ink)">
-      <span><b>Без сети.</b> Открыта копия словаря с телефона. Можно добавлять слова и повторять, всё отправится в облако, когда вернёшься в сеть.</span>
+      <span>${S.noSnapshot ? "<b>Нет сети, а копии словаря на телефоне пока нет.</b> Открой приложение один раз с интернетом и подожди пару секунд — после этого «Словник» будет работать и без сети." : "<b>Без сети.</b> Открыта копия словаря с телефона. Можно добавлять слова и повторять, всё отправится в облако, когда вернёшься в сеть."}</span>
       ${canGoOnline ? `<button class="btn primary" id="go-online">Сеть есть, синхронизировать</button>` : ""}</div>` : ""}
     <h2>Повторение</h2>
     <div class="panel">
@@ -763,7 +772,8 @@ function viewWords(v){
   if(q) list = list.filter(w => key(w.en).includes(q) || key(w.ru).includes(q) || key(w.note).includes(q));
   list.sort((a,b) => (reviewable(a)?1:0) - (reviewable(b)?1:0) || (a.lv.en+a.lv.ru) - (b.lv.en+b.lv.ru) || Math.min(a.lv.en,a.lv.ru) - Math.min(b.lv.en,b.lv.ru) || b.added - a.added);
   v.innerHTML = `
-    <h2>Словарь</h2>
+    <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Словарь</h2>
+      ${list.length ? `<button class="link" id="sel-toggle">${S.sel ? "Готово" : "Выбрать"}</button>` : ""}</div>
     <div class="row" style="margin-bottom:10px">
       <input type="search" id="dq" class="grow" placeholder="Поиск по слову или переводу" value="${esc(S.dictQuery)}">
       <select id="dset" class="grow" aria-label="Набор">${setOptions(S.dictSet, true)}</select>
@@ -771,21 +781,50 @@ function viewWords(v){
     <p class="hint" style="margin:0 0 10px">${plural(list.length, "запись", "записи", "записей")}, сначала наименее выученные (по сумме обоих направлений).</p>
     <div class="list" id="dlist">
       ${list.length ? list.slice(0, 400).map((w, i) => `
-        <button class="item" style="--i:${i}" data-id="${esc(w.id)}">
+        <button class="item${S.sel && S.sel.has(w.id) ? " picked" : ""}" style="--i:${i}" data-id="${esc(w.id)}"${S.sel ? ` aria-pressed="${S.sel.has(w.id)}"` : ""}>
           <span class="en">${esc(w.en)}</span>
-          <span class="lv">
+          <span class="lv">${S.sel ? `<span class="check" aria-hidden="true"></span>` : `
             <span class="lvrow">EN→RU ${pips(w.lv.en)}</span>
-            <span class="lvrow">RU→EN ${pips(w.lv.ru)}</span>
+            <span class="lvrow">RU→EN ${pips(w.lv.ru)}</span>`}
           </span>
           <span class="ru">${w.ru ? esc(w.ru) : '<span class="chip warn">нужен перевод</span>'}</span>
         </button>`).join("") : `<div class="empty"><b>Ничего не найдено</b>${S.words.size ? "Попробуй другой запрос или набор." : "Словарь пока пуст."}</div>`}
     </div>
-    ${list.length > 400 ? `<p class="hint">Показаны первые 400. Уточни поиск, чтобы найти остальные.</p>` : ""}`;
+    ${list.length > 400 ? `<p class="hint">Показаны первые 400. Уточни поиск, чтобы найти остальные.</p>` : ""}
+    ${S.sel ? `<div class="selbar" id="selbar">
+      <div class="row" style="justify-content:space-between"><b>Выбрано: ${S.sel.size}</b>
+        <span class="row" style="gap:14px"><button class="link" id="sel-all">${list.slice(0,400).every(w => S.sel.has(w.id)) ? "Снять все" : "Выбрать все"}</button><button class="link" id="sel-done">Готово</button></span></div>
+      <div class="row"><select id="sel-set" class="grow" aria-label="Набор">${setOptions("", false)}</select>
+        <button class="btn primary" id="sel-move" ${S.sel.size ? "" : "disabled"}>Переместить</button></div>
+      <div id="sel-danger"><button class="link" id="sel-del" style="color:var(--bad)" ${S.sel.size ? "" : "disabled"}>Удалить выбранные</button></div>
+    </div>` : ""}`;
   const dq = $("#dq");
   dq.oninput = e => { S.dictQuery = e.target.value; clearTimeout(dq.t); dq.t = setTimeout(() => { const pos = dq.selectionStart; render(); const n = $("#dq"); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(_){} }, 200); };
   $("#dset").onchange = e => { S.dictSet = e.target.value; render(); };
-  v.querySelectorAll(".item").forEach(b => b.onclick = () => openEdit(b.dataset.id));
+  v.querySelectorAll(".item").forEach(b => b.onclick = () => {
+    if(!S.sel) return openEdit(b.dataset.id);
+    const id = b.dataset.id;
+    S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id);
+    haptic("tick"); keepScroll(render);
+  });
+  const shown = list.slice(0, 400);
+  if($("#sel-toggle")) $("#sel-toggle").onclick = () => { S.sel = S.sel ? null : new Set(); keepScroll(render); };
+  if(!S.sel) return;
+  $("#sel-done").onclick = () => { S.sel = null; keepScroll(render); };
+  $("#sel-all").onclick = () => { const all = shown.every(w => S.sel.has(w.id)); shown.forEach(w => all ? S.sel.delete(w.id) : S.sel.add(w.id)); keepScroll(render); };
+  $("#sel-move").onclick = () => {
+    const target = $("#sel-set").value; let n = 0;
+    for(const id of S.sel){ const w = S.words.get(id); if(w && w.set !== target){ w.set = target; persistWord(w); n++; } }
+    toast(n ? plural(n, "слово перемещено", "слова перемещены", "слов перемещено") + " в «" + setLabel(target) + "»" : "Эти слова уже там");
+    feedback("good"); S.sel = null; keepScroll(render);
+  };
+  $("#sel-del").onclick = () => {
+    $("#sel-danger").innerHTML = `<div class="row"><span class="hint grow">Удалить ${plural(S.sel.size, "слово", "слова", "слов")}?</span><button class="btn danger solid" id="sel-del2">Удалить</button><button class="btn" id="sel-del-no">Отмена</button></div>`;
+    $("#sel-del-no").onclick = () => keepScroll(render);
+    $("#sel-del2").onclick = () => { const n = S.sel.size; for(const id of S.sel) removeWord(id); S.sel = null; toast("Удалено: " + n); keepScroll(render); };
+  };
 }
+function keepScroll(fn){ const y = window.scrollY; fn(); window.scrollTo(0, y); }
 
 /* ---------- modal ---------- */
 function openModal(html, mount){
@@ -1113,15 +1152,19 @@ function viewMore(v){
 }
 function exportData(){ return JSON.stringify({ app:"slovnik", version:1, exported:new Date().toISOString(), meta:S.meta, words:[...S.words.values()].map(w => ({ id:w.id, ...plain(w) })) }, null, 2); }
 async function exportJson(){
-  const data = exportData(), name = "slovnik-" + new Date().toISOString().slice(0,10) + ".json";
+  const data = exportData(), name = "slovnik-" + localDate() + ".json";
+  if(NATIVE && typeof NATIVE.saveFile === "function"){
+    if(nativeCall("saveFile", name, data)) return;
+  }
   if(S.downloads && !NATIVE){
     try{ await S.downloads.save({ filename: name, data }); toast("Файл сохранён"); return; }
     catch(e){ if(e && e.code === "declined") return; }
   }
   showJson(data, name);
 }
+function localDate(){ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
 function showJson(data, name){
-  data = data || exportData(); name = name || "slovnik-" + new Date().toISOString().slice(0,10) + ".json";
+  data = data || exportData(); name = name || "slovnik-" + localDate() + ".json";
   $("#m-out").innerHTML = `<label class="f">Скопируй и сохрани этот текст как ${esc(name)}<textarea id="m-json" readonly>${esc(data)}</textarea></label><button class="btn" id="m-copy">Скопировать</button>`;
   $("#m-copy").onclick = async () => { const t = $("#m-json"); try{ await navigator.clipboard.writeText(t.value); toast("Скопировано"); }catch(e){ t.focus(); t.select(); } };
 }
@@ -1198,10 +1241,12 @@ applySeed(getSeed());
 document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
   if(S.tab === b.dataset.tab) return;
   haptic("tick");
+  S.sel = null;
   S.tab = b.dataset.tab; S.animView = true; refresh(); window.scrollTo(0,0);
 });
 S.tab = tabFromHash() || S.tab;
 loadLocal();
+nativeCall("pageAlive");
 if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); }
 else { refresh(); initCaps(); reportPage(); }
 })();
