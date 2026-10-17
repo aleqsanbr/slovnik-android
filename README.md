@@ -56,6 +56,10 @@ Android-приложение для [«Словника»](https://claude.ai/art
 gradle assembleRelease
 ```
 
+## Для разработчиков и агентов
+
+Как всё устроено, как поднимать версию, собирать и что нельзя ломать — в [AGENTS.md](AGENTS.md).
+
 ## Автор
 
 [Aleksandr Belikov](https://github.com/aleqsanbr)
