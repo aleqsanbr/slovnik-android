@@ -4,10 +4,15 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -29,42 +34,23 @@ import org.json.JSONObject;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.function.IntConsumer;
 
 /**
- * A thin full-screen shell around the Словник artifact on claude.ai.
- * The claude.ai page is loaded as-is (so sign-in, storage and Claude calls keep working),
- * and a small injected script stretches the artifact's frame over claude.ai's own header.
+ * A thin shell around the Словник artifact on claude.ai.
+ * - Only the artifact itself (plus Claude's sign-in pages) opens inside the app; every other link goes to the browser.
+ * - The status and navigation bars take their colours from what the page actually draws,
+ *   so they follow whatever Material You colour is chosen inside Словник.
  */
 public class MainActivity extends Activity {
 
-    static final String START_URL = "https://claude.ai/artifact/L2DuyM3QrRJHowUuoqp6mh";
+    static final String ARTIFACT_PATH = "/artifact/L2DuyM3QrRJHowUuoqp6mh";
+    static final String START_URL = "https://claude.ai" + ARTIFACT_PATH;
     static final Set<String> TABS = new HashSet<>(Arrays.asList("review", "words", "add", "more"));
+    /** claude.ai paths needed to sign in; everything else on claude.ai counts as "outside the artifact". */
+    static final String[] AUTH_PREFIXES = { "/login", "/logout", "/magic-link", "/verify", "/api/", "/sso", "/oauth", "/cdn-cgi/" };
     static final int FILE_REQUEST = 41;
-
-    /** Stretches the biggest iframe (the artifact) over the claude.ai page, except while a claude.ai dialog is open. */
-    static final String IMMERSIVE_JS =
-        "(function(){" +
-        "if(window.__slv){window.__slv();return;}" +
-        "var st=document.createElement('style');(document.head||document.documentElement).appendChild(st);" +
-        "var CSS='iframe[data-slv]{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;" +
-        "width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;z-index:2147483000!important;" +
-        "border:0!important;border-radius:0!important;margin:0!important;transform:none!important}html,body{overflow:hidden!important}';" +
-        "function dialogOpen(){var d=document.querySelectorAll('[role=dialog],[role=alertdialog]');" +
-        "for(var i=0;i<d.length;i++){var r=d[i].getBoundingClientRect();if(r.width>0&&r.height>0)return true;}return false;}" +
-        "function apply(){" +
-        " var on=location.pathname.indexOf('/artifact/')===0&&!dialogOpen();" +
-        " if(!on){if(st.textContent)st.textContent='';return;}" +
-        " var cur=document.querySelector('iframe[data-slv]');" +
-        " if(!cur){var best=null,ba=0,f=document.querySelectorAll('iframe');" +
-        "  for(var i=0;i<f.length;i++){var r=f[i].getBoundingClientRect(),a=r.width*r.height;if(a>ba){ba=a;best=f[i];}}" +
-        "  if(!best||ba<40000){if(st.textContent)st.textContent='';return;}best.setAttribute('data-slv','1');}" +
-        " if(st.textContent!==CSS)st.textContent=CSS;}" +
-        "window.__slv=apply;apply();" +
-        "new MutationObserver(function(){clearTimeout(window.__slvT);window.__slvT=setTimeout(apply,80);})" +
-        ".observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['role','data-state','open','style','class']});" +
-        "})();";
+    static final long SAMPLE_EVERY_MS = 900;
 
     private WebView web;
     private FrameLayout root;
@@ -72,6 +58,16 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customCallback;
     private ValueCallback<Uri[]> pendingFiles;
     private final ChromeClient chrome = new ChromeClient();
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private int statusColor = 0, navColor = 0;
+    private boolean resumed = false;
+
+    private final Runnable sampler = new Runnable() {
+        @Override public void run() {
+            sampleBars();
+            if (resumed) ui.postDelayed(this, SAMPLE_EVERY_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle state) {
@@ -84,7 +80,8 @@ public class MainActivity extends Activity {
         int bg = defaultBackground();
         root.setBackgroundColor(bg);
         web.setBackgroundColor(bg);
-        applyBars(bg);
+        setStatusColor(bg);
+        setNavColor(bg);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -135,7 +132,7 @@ public class MainActivity extends Activity {
         web.evaluateJavascript("(function(){location.replace(" + target + ");location.reload();})()", null);
     }
 
-    /* ---------- system bars ---------- */
+    /* ---------- system bars: follow the colours the page draws ---------- */
 
     private boolean isNight() {
         return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -148,23 +145,59 @@ public class MainActivity extends Activity {
         return isNight() ? 0xFF11141A : 0xFFECEFF3;
     }
 
+    private void setStatusColor(int color) {
+        if (color == statusColor) return;
+        statusColor = color;
+        getWindow().setStatusBarColor(color);
+        setLightBars(Color.luminance(color) > 0.5f, true);
+    }
+
+    private void setNavColor(int color) {
+        if (color == navColor) return;
+        navColor = color;
+        getWindow().setNavigationBarColor(color);
+        setLightBars(Color.luminance(color) > 0.5f, false);
+    }
+
     @SuppressWarnings("deprecation")
-    private void applyBars(int color) {
+    private void setLightBars(boolean light, boolean status) {
         Window w = getWindow();
-        w.setStatusBarColor(color);
-        w.setNavigationBarColor(color);
-        boolean light = Color.luminance(color) > 0.5f;
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = w.getInsetsController();
-            if (c != null) {
-                int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                c.setSystemBarsAppearance(light ? mask : 0, mask);
-            }
+            if (c == null) return;
+            int mask = status ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            c.setSystemBarsAppearance(light ? mask : 0, mask);
         } else {
             View decor = w.getDecorView();
+            int flag = status ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             int flags = decor.getSystemUiVisibility();
-            int mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            decor.setSystemUiVisibility(light ? (flags | mask) : (flags & ~mask));
+            decor.setSystemUiVisibility(light ? (flags | flag) : (flags & ~flag));
+        }
+    }
+
+    /**
+     * Reads two pixels the page draws: the page background at the left edge halfway down (status bar)
+     * and the tab bar at the very bottom (navigation bar). Cheap: two 1×1 copies about once a second.
+     */
+    private void sampleBars() {
+        if (customView != null || web.getWidth() == 0 || web.getHeight() == 0 || !web.isAttachedToWindow()) return;
+        int[] loc = new int[2];
+        web.getLocationInWindow(loc);
+        int inset = Math.max(1, Math.round(3 * getResources().getDisplayMetrics().density));
+        int x = loc[0] + inset;
+        copyPixel(x, loc[1] + web.getHeight() / 2, this::setStatusColor);
+        copyPixel(x, loc[1] + web.getHeight() - inset, this::setNavColor);
+    }
+
+    private void copyPixel(int x, int y, IntConsumer onColor) {
+        final Bitmap bmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        try {
+            PixelCopy.request(getWindow(), new Rect(x, y, x + 1, y + 1), bmp, result -> {
+                if (result == PixelCopy.SUCCESS) onColor.accept(bmp.getPixel(0, 0) | 0xFF000000);
+                bmp.recycle();
+            }, ui);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            bmp.recycle();
         }
     }
 
@@ -181,31 +214,13 @@ public class MainActivity extends Activity {
                 c.show(WindowInsets.Type.systemBars());
             }
         } else {
-            View decor = w.getDecorView();
-            decor.setSystemUiVisibility(hide
+            w.getDecorView().setSystemUiVisibility(hide
                 ? View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 : 0);
         }
     }
 
-    private static final Pattern RGB = Pattern.compile("rgba?\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)");
-
-    static Integer parseCssColor(String css) {
-        if (css == null) return null;
-        css = css.trim();
-        try {
-            if (css.startsWith("#") && css.length() == 7) return 0xFF000000 | Integer.parseInt(css.substring(1), 16);
-            Matcher m = RGB.matcher(css);
-            if (m.find()) {
-                return Color.rgb(Math.min(255, Integer.parseInt(m.group(1))),
-                                 Math.min(255, Integer.parseInt(m.group(2))),
-                                 Math.min(255, Integer.parseInt(m.group(3))));
-            }
-        } catch (NumberFormatException ignored) { }
-        return null;
-    }
-
-    /** Exposed to the page (all frames) as window.SlovnikNative. Only harmless, display-related calls. */
+    /** Exposed to the page as window.SlovnikNative: lets Словник use the system Material You accent. */
     class Bridge {
         @JavascriptInterface
         public boolean isApp() { return true; }
@@ -216,33 +231,53 @@ public class MainActivity extends Activity {
             int c = getColor(android.R.color.system_accent1_500);
             return String.format("#%06X", 0xFFFFFF & c);
         }
-
-        @JavascriptInterface
-        public void setBarColor(String css) {
-            final Integer c = parseCssColor(css);
-            if (c == null) return;
-            runOnUiThread(() -> {
-                if (customView != null) return;
-                applyBars(c);
-                root.setBackgroundColor(c);
-            });
-        }
     }
 
-    /* ---------- navigation ---------- */
+    /* ---------- navigation: only the artifact (and sign-in) stays inside ---------- */
 
-    private static boolean isInternal(String host) {
-        if (host == null) return false;
-        return host.equals("claude.ai") || host.endsWith(".claude.ai")
-            || host.equals("anthropic.com") || host.endsWith(".anthropic.com")
-            || host.endsWith(".claudeusercontent.com")
-            || host.equals("challenges.cloudflare.com");
+    private static boolean isClaude(Uri u) {
+        String h = u.getHost();
+        return h != null && (h.equals("claude.ai") || h.endsWith(".claude.ai"));
+    }
+
+    private static boolean isArtifact(Uri u) {
+        String p = u.getPath();
+        return isClaude(u) && p != null && p.startsWith(ARTIFACT_PATH);
+    }
+
+    private static boolean isAuth(Uri u) {
+        String p = u.getPath();
+        if (!isClaude(u) || p == null) return false;
+        for (String prefix : AUTH_PREFIXES) if (p.startsWith(prefix)) return true;
+        return false;
+    }
+
+    private static boolean isWeb(Uri u) {
+        return "https".equals(u.getScheme()) || "http".equals(u.getScheme());
+    }
+
+    private boolean onAuthPage() {
+        String cur = web.getUrl();
+        return cur != null && isAuth(Uri.parse(cur));
+    }
+
+    /** True when the app should keep this main-frame navigation; otherwise it has been handed off. */
+    private boolean keepInside(Uri u) {
+        if (isWeb(u) && (isArtifact(u) || isAuth(u))) return true;
+        // Right after signing in Claude sends you to its home page: come back to Словник instead.
+        if (isWeb(u) && isClaude(u) && onAuthPage()) {
+            ui.post(() -> web.loadUrl(START_URL));
+            return false;
+        }
+        openExternal(u);
+        return false;
     }
 
     private void openExternal(Uri uri) {
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, uri);
             i.addCategory(Intent.CATEGORY_BROWSABLE);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(i);
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "Нечем открыть ссылку", Toast.LENGTH_SHORT).show();
@@ -253,23 +288,32 @@ public class MainActivity extends Activity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             if (!request.isForMainFrame()) return false;
-            Uri u = request.getUrl();
-            String scheme = u.getScheme();
-            if (("https".equals(scheme) || "http".equals(scheme)) && isInternal(u.getHost())) return false;
-            openExternal(u);
-            return true;
+            return !keepInside(request.getUrl());
+        }
+
+        /** Catches claude.ai's in-page route changes (its own buttons), which never reach shouldOverrideUrlLoading. */
+        @Override
+        public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+            Uri u = Uri.parse(url);
+            if (!isWeb(u) || isArtifact(u) || isAuth(u)) return;
+            if (isClaude(u)) {
+                if (!onAuthPageBefore(view)) openExternal(u);
+                view.post(() -> view.loadUrl(START_URL));
+            }
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            view.evaluateJavascript(IMMERSIVE_JS, null);
             CookieManager.getInstance().flush();
         }
+    }
 
-        @Override
-        public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
-            view.evaluateJavascript(IMMERSIVE_JS, null);
-        }
+    /** The page we came from was a sign-in page (so a jump to claude.ai's home means "signed in", not a link). */
+    private boolean onAuthPageBefore(WebView view) {
+        android.webkit.WebBackForwardList h = view.copyBackForwardList();
+        int i = h.getCurrentIndex() - 1;
+        if (i < 0) return false;
+        return isAuth(Uri.parse(h.getItemAtIndex(i).getUrl()));
     }
 
     class ChromeClient extends WebChromeClient {
@@ -327,7 +371,10 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         if (customView != null) { chrome.onHideCustomView(); return; }
-        if (web.canGoBack()) { web.goBack(); return; }
+        if (web.canGoBack()) {
+            String back = web.copyBackForwardList().getItemAtIndex(web.copyBackForwardList().getCurrentIndex() - 1).getUrl();
+            if (back != null && isArtifact(Uri.parse(back))) { web.goBack(); return; }
+        }
         super.onBackPressed();
     }
 
@@ -341,10 +388,15 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+        resumed = true;
+        ui.removeCallbacks(sampler);
+        ui.postDelayed(sampler, 300);
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
+        ui.removeCallbacks(sampler);
         web.onPause();
         CookieManager.getInstance().flush();
         super.onPause();
@@ -352,6 +404,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        ui.removeCallbacksAndMessages(null);
         root.removeAllViews();
         web.destroy();
         super.onDestroy();
