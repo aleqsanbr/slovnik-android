@@ -114,14 +114,13 @@ public class Widget extends AppWidgetProvider {
         boolean open = w != null && p.getBoolean("open_" + wid, false);
         if (w != null) p.edit().putString("word_" + wid, w.optString("id")).apply();
 
-        // Revealed: the grade buttons take height, so the word shrinks and the card tightens to leave room for the translation.
+        // Revealed: the translation takes the English word's place (the grade buttons need the height).
         int pad = Math.round(14 * c.getResources().getDisplayMetrics().density);
-        int padV = open ? Math.round(8 * c.getResources().getDisplayMetrics().density) : pad;
+        int padV = open ? Math.round(10 * c.getResources().getDisplayMetrics().density) : pad;
         v.setViewPadding(R.id.w_card, pad, padV, pad, padV);
-        v.setTextViewTextSize(R.id.w_word, TypedValue.COMPLEX_UNIT_SP, open ? 16 : 22);
-        v.setInt(R.id.w_word, "setMaxLines", open ? 1 : 2);
-        v.setInt(R.id.w_answer, "setMaxLines", 2);
-        v.setViewVisibility(R.id.w_answer, open ? View.VISIBLE : View.GONE);
+        v.setTextViewTextSize(R.id.w_word, TypedValue.COMPLEX_UNIT_SP, open ? 19 : 22);
+        v.setInt(R.id.w_word, "setMaxLines", 2);
+        v.setViewVisibility(R.id.w_answer, View.GONE);
         v.setViewVisibility(R.id.w_buttons, open ? View.VISIBLE : View.GONE);
         v.setViewVisibility(R.id.w_hint, open ? View.GONE : View.VISIBLE);
         if (snap == null) {
@@ -134,9 +133,7 @@ public class Widget extends AppWidgetProvider {
             v.setOnClickPendingIntent(R.id.w_card, Notifications.openTab(c, "words", 600 + wid));
         } else {
             String id = w.optString("id");
-            v.setTextViewText(R.id.w_word, w.optString("en"));
-            String ru = w.optString("ru"), note = w.optString("note", "").trim();
-            v.setTextViewText(R.id.w_answer, note.isEmpty() ? ru : ru + " — " + note);
+            v.setTextViewText(R.id.w_word, open ? w.optString("ru") : w.optString("en"));
             v.setTextViewText(R.id.w_hint, "Нажми, чтобы увидеть перевод");
             v.setOnClickPendingIntent(R.id.w_card, self(c, ACTION_REVEAL, wid, null, null, 1));
             v.setOnClickPendingIntent(R.id.w_bad, self(c, ACTION_GRADE, wid, id, "bad", 2));
