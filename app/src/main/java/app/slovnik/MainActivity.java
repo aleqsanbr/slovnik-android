@@ -4,7 +4,25 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
+import android.content.res.ColorStateList;
+import android.graphics.Outline;
 import android.graphics.Typeface;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
+import android.view.Gravity;
+import android.view.ViewOutlineProvider;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -134,6 +152,164 @@ public class MainActivity extends Activity {
     private SensorManager sensors;
     private long lastShake = 0, firstJolt = 0;
     private AlertDialog logDialog;
+
+    /* ---------- animated splash ---------- */
+    private FrameLayout splash;
+    private ImageView splashIcon;
+    private ObjectAnimator breathing;
+    private volatile boolean prefSound = true, prefHaptics = true;
+
+    private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    private int accentColor(boolean strong) {
+        if (Build.VERSION.SDK_INT >= 31) {
+            if (isNight()) return getColor(strong ? android.R.color.system_accent1_200 : android.R.color.system_accent1_100);
+            return getColor(strong ? android.R.color.system_accent1_600 : android.R.color.system_accent1_700);
+        }
+        return isNight() ? 0xFFB9C3FF : 0xFF4A5BB8;
+    }
+
+    private void showSplash(int bg) {
+        splash = new FrameLayout(this);
+        splash.setBackgroundColor(bg);
+        splash.setClickable(true);
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        splashIcon = new ImageView(this);
+        splashIcon.setImageDrawable(getDrawable(R.mipmap.ic_launcher));
+        splashIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        final int iconSize = dp(124);
+        splashIcon.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View view, Outline outline) {
+                int inset = Math.round(view.getWidth() * 0.12f);
+                outline.setOval(inset, inset, view.getWidth() - inset, view.getHeight() - inset);
+            }
+        });
+        splashIcon.setClipToOutline(true);
+        splashIcon.setElevation(dp(6));
+        col.addView(splashIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
+
+        TextView name = new TextView(this);
+        name.setText("Словник");
+        name.setTextSize(26);
+        name.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
+        name.setTextColor(accentColor(true));
+        name.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(-2, -2);
+        nlp.topMargin = dp(14);
+        col.addView(name, nlp);
+
+        ProgressBar spinner = new ProgressBar(this);
+        spinner.setIndeterminate(true);
+        spinner.setIndeterminateTintList(ColorStateList.valueOf(accentColor(false)));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(dp(30), dp(30));
+        slp.topMargin = dp(26);
+        col.addView(spinner, slp);
+
+        splash.addView(col, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+
+        // icon pops in with a little spring, the name and loader fade up after it
+        splashIcon.setScaleX(0.4f); splashIcon.setScaleY(0.4f); splashIcon.setAlpha(0f); splashIcon.setRotation(-12f);
+        splashIcon.animate().scaleX(1f).scaleY(1f).alpha(1f).rotation(0f)
+            .setDuration(620).setInterpolator(new OvershootInterpolator(2.2f))
+            .withEndAction(this::startBreathing).start();
+        for (View v : new View[] { name, spinner }) {
+            v.setAlpha(0f); v.setTranslationY(dp(10));
+            v.animate().alpha(1f).translationY(0).setStartDelay(260).setDuration(420).setInterpolator(new DecelerateInterpolator()).start();
+        }
+        if (prefHaptics) root.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+        ui.postDelayed(() -> hideSplash(false), 12000);
+    }
+
+    private void startBreathing() {
+        if (splash == null || splashIcon == null) return;
+        breathing = ObjectAnimator.ofPropertyValuesHolder(splashIcon,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.05f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.05f));
+        breathing.setDuration(900);
+        breathing.setRepeatCount(ValueAnimator.INFINITE);
+        breathing.setRepeatMode(ValueAnimator.REVERSE);
+        breathing.start();
+    }
+
+    /** Hides the splash; when Словник is really ready it also chimes and gives a haptic "done". */
+    private void hideSplash(boolean ready) {
+        final FrameLayout s = splash;
+        if (s == null) return;
+        splash = null;
+        if (breathing != null) { breathing.cancel(); breathing = null; }
+        if (ready) {
+            if (prefHaptics) root.performHapticFeedback(Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.VIRTUAL_KEY);
+            playReadyChime();
+        }
+        if (splashIcon != null) splashIcon.animate().scaleX(1.18f).scaleY(1.18f).setDuration(380).setInterpolator(new DecelerateInterpolator()).start();
+        s.animate().alpha(0f).setStartDelay(ready ? 120 : 0).setDuration(380).setListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator a) { root.removeView(s); }
+        }).start();
+        splashIcon = null;
+    }
+
+    /** A soft two-note bell, synthesized on the fly; silent when the phone is on silent/vibrate. */
+    private void playReadyChime() {
+        if (!prefSound) return;
+        AudioManager am = getSystemService(AudioManager.class);
+        if (am != null && am.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
+        bg.execute(() -> {
+            final int rate = 44100;
+            final double len = 0.9;
+            short[] pcm = new short[(int) (rate * len)];
+            double[][] notes = { { 659.25, 0.00 }, { 987.77, 0.11 } };   // E5 then B5
+            for (int i = 0; i < pcm.length; i++) {
+                double t = (double) i / rate, v = 0;
+                for (double[] n : notes) {
+                    double tt = t - n[1];
+                    if (tt < 0) continue;
+                    double env = Math.min(1, tt / 0.008) * Math.exp(-tt / 0.22);
+                    v += env * (Math.sin(2 * Math.PI * n[0] * tt) + 0.28 * Math.sin(2 * Math.PI * n[0] * 2.01 * tt) + 0.1 * Math.sin(2 * Math.PI * n[0] * 3.0 * tt));
+                }
+                pcm[i] = (short) Math.max(-32767, Math.min(32767, v * 0.18 * 32767));
+            }
+            AudioTrack track = null;
+            try {
+                track = new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                    .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .setBufferSizeInBytes(pcm.length * 2)
+                    .build();
+                track.write(pcm, 0, pcm.length);
+                track.play();
+                Thread.sleep((long) (len * 1000) + 150);
+            } catch (Exception e) {
+                log("звук заставки: " + e.getMessage());
+            } finally {
+                if (track != null) track.release();
+            }
+        });
+    }
+
+    /** Sound/vibration switches live in Словник's settings; read them from the saved copy of the dictionary. */
+    private void loadFeedbackPrefs() {
+        bg.execute(() -> {
+            String text;
+            synchronized (store) { text = readFile(snapFile()); }
+            if (text.isEmpty()) return;
+            try {
+                JSONObject meta = new JSONObject(text).optJSONObject("meta");
+                if (meta == null) return;
+                prefSound = meta.optBoolean("sound", true);
+                prefHaptics = meta.optBoolean("haptics", true);
+            } catch (JSONException ignored) { }
+        });
+    }
     private final SensorEventListener shake = new SensorEventListener() {
         @Override public void onSensorChanged(SensorEvent e) {
             float g = (float) Math.sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) / SensorManager.GRAVITY_EARTH;
@@ -215,6 +391,7 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        loadFeedbackPrefs();
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyHeaderShift());
 
         int bg = defaultBackground();
@@ -222,6 +399,7 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(bg);
         setStatusColor(bg);
         setNavColor(bg);
+        showSplash(bg);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -560,7 +738,11 @@ public class MainActivity extends Activity {
         public boolean isOffline() { return offline; }
 
         @JavascriptInterface
-        public void pageAlive() { alive = true; log("страница стартовала (" + (offline ? "офлайн" : "онлайн") + ")"); }
+        public void pageAlive() {
+            alive = true;
+            log("страница стартовала (" + (offline ? "офлайн" : "онлайн") + ")");
+            ui.postDelayed(() -> hideSplash(true), 450);
+        }
 
         @JavascriptInterface
         public void jsLog(String msg) { MainActivity.log("страница: " + msg); }
@@ -792,6 +974,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            if (url != null && isAuth(Uri.parse(url))) hideSplash(false);
             log("загружено: " + shortUrl(url));
             CookieManager.getInstance().flush();
         }
