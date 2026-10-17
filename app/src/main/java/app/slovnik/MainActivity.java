@@ -15,6 +15,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.speech.tts.TextToSpeech;
+import android.view.HapticFeedbackConstants;
 import android.view.PixelCopy;
 import android.view.View;
 import android.view.Window;
@@ -46,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -77,6 +80,8 @@ public class MainActivity extends Activity {
     private int statusColor = 0, navColor = 0;
     private int headerPx = 0;
     private volatile boolean offline = false;
+    private TextToSpeech tts;
+    private volatile boolean ttsOk = false;
     private final Object store = new Object();
 
     /** Top of the artifact frame in CSS px (= height of claude.ai's bar above it), or -1 when not on the artifact. */
@@ -127,6 +132,7 @@ public class MainActivity extends Activity {
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, true);
 
+        tts = new TextToSpeech(this, status -> ttsOk = status == TextToSpeech.SUCCESS);
         web.addJavascriptInterface(new Bridge(), "SlovnikNative");
         web.setWebViewClient(new Client());
         web.setWebChromeClient(chrome);
@@ -373,6 +379,43 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean isOffline() { return offline; }
+
+        @JavascriptInterface
+        public boolean ttsReady() { return ttsOk; }
+
+        /** Speaks English through the phone's TTS engine (whatever is set in system settings). */
+        @JavascriptInterface
+        public void speak(String text, String lang) {
+            if (text == null || text.trim().isEmpty()) return;
+            final String t = text.length() > 600 ? text.substring(0, 600) : text;
+            runOnUiThread(() -> {
+                if (tts == null || !ttsOk) {
+                    Toast.makeText(MainActivity.this, "Озвучка ещё не готова или не настроена в системе", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Locale loc = "en-GB".equals(lang) ? Locale.UK : Locale.US;
+                int r = tts.setLanguage(loc);
+                if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) tts.setLanguage(Locale.ENGLISH);
+                tts.speak(t, TextToSpeech.QUEUE_FLUSH, null, "slovnik");
+            });
+        }
+
+        @JavascriptInterface
+        public void stopSpeaking() {
+            runOnUiThread(() -> { if (tts != null) tts.stop(); });
+        }
+
+        /** System haptic feedback; respects the phone's "touch feedback" setting. */
+        @JavascriptInterface
+        public void haptic(String kind) {
+            runOnUiThread(() -> {
+                int c;
+                if ("confirm".equals(kind)) c = Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.VIRTUAL_KEY;
+                else if ("reject".equals(kind)) c = Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.REJECT : HapticFeedbackConstants.LONG_PRESS;
+                else c = HapticFeedbackConstants.CLOCK_TICK;
+                web.performHapticFeedback(c);
+            });
+        }
 
         @JavascriptInterface
         public boolean online() { return isNetworkOk(); }
@@ -629,6 +672,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
+        if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         root.removeAllViews();
         web.destroy();
         super.onDestroy();

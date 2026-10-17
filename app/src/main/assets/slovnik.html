@@ -220,6 +220,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 .toast{animation:toastIn .25s var(--ease) both}
 .card{transition:box-shadow .25s}
 
+.say{flex:none;width:36px;height:36px;border-radius:50%;border:0;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent-soft-ink);transition:transform .15s var(--ease)}
+.say:active{transform:scale(.9)}
+.say svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.card .front{gap:10px;justify-content:space-between}
+.card .answer.with-say{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.95rem}
+.toggle input{width:22px;height:22px;accent-color:var(--accent);flex:none}
+
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style>
 
@@ -261,7 +269,7 @@ const MAX_LV = 6;
 const MIN = 60e3, DAY = 864e5;
 const INTERVALS = [10*MIN, 1*DAY, 3*DAY, 7*DAY, 14*DAY, 30*DAY, 60*DAY];
 const EMOJIS = ["📕","📗","📘","📙","📚","📖","🎮","🎬","📰","🎧","✍️","🧠","⭐","🌍","🏛️","🔬","💼","🎵"];
-const DEFAULT_META = { sets: [], level: "B1–B2", dir: "en", sessionLen: 20, revSet: "all" };
+const DEFAULT_META = { sets: [], level: "B1–B2", dir: "en", sessionLen: 20, revSet: "all", ttsAuto: false, accent: "en-US", sound: true, haptics: true };
 
 const S = {
   words: new Map(), meta: structuredClone(DEFAULT_META),
@@ -478,6 +486,61 @@ function applyWords(snap){
   S.words = next;
 }
 
+/* ---------- speech, sounds, haptics ---------- */
+const SAY_ICON = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+const sayBtn = (text, extra) => `<button class="say" type="button" data-say="${esc(text)}" aria-label="Прослушать" title="Прослушать"${extra||""}>${SAY_ICON}</button>`;
+const hasNativeSpeech = () => !!(NATIVE && typeof NATIVE.speak === "function");
+const canSpeak = () => hasNativeSpeech() || ("speechSynthesis" in window);
+function speak(text){
+  text = String(text || "").trim(); if(!text) return;
+  const lang = S.meta.accent || "en-US";
+  if(hasNativeSpeech()){ nativeCall("speak", text, lang); return; }
+  try{
+    const ss = window.speechSynthesis; if(!ss) return;
+    ss.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.95;
+    const vs = ss.getVoices();
+    const v = vs.find(x => x.lang === lang || x.lang === lang.replace("-", "_")) || vs.find(x => (x.lang || "").toLowerCase().startsWith("en"));
+    if(v) u.voice = v;
+    ss.speak(u);
+  }catch(e){}
+}
+function wireSay(root){
+  root.querySelectorAll("[data-say]").forEach(b => b.onclick = e => { e.stopPropagation(); haptic("tick"); speak(b.dataset.say); });
+}
+let actx = null;
+function tone(f, t0, dur, type, g){
+  const o = actx.createOscillator(), gn = actx.createGain();
+  o.type = type || "sine"; o.frequency.setValueAtTime(f, t0);
+  gn.gain.setValueAtTime(0.0001, t0);
+  gn.gain.exponentialRampToValueAtTime(g || 0.07, t0 + 0.012);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(gn); gn.connect(actx.destination);
+  o.start(t0); o.stop(t0 + dur + 0.03);
+}
+function fx(kind){
+  if(S.meta.sound === false) return;
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if(actx.state === "suspended") actx.resume();
+  }catch(e){ return; }
+  const t = actx.currentTime + 0.01;
+  if(kind === "flip"){ tone(740, t, 0.06, "triangle", 0.035); tone(1110, t + 0.035, 0.07, "triangle", 0.025); }
+  else if(kind === "good"){ tone(659, t, 0.12, "sine", 0.07); tone(988, t + 0.08, 0.2, "sine", 0.07); }
+  else if(kind === "hard"){ tone(523, t, 0.18, "triangle", 0.06); }
+  else if(kind === "bad"){ tone(294, t, 0.12, "sine", 0.08); tone(220, t + 0.09, 0.22, "sine", 0.08); }
+  else if(kind === "done"){ [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.09, 0.24, "sine", 0.06)); }
+}
+function haptic(kind){
+  if(S.meta.haptics === false) return;
+  if(NATIVE && typeof NATIVE.haptic === "function"){ nativeCall("haptic", kind); return; }
+  try{ if(navigator.vibrate) navigator.vibrate(kind === "reject" ? [28, 40, 28] : kind === "confirm" ? 18 : 8); }catch(e){}
+}
+function feedback(kind){
+  fx(kind);
+  haptic(kind === "good" || kind === "done" ? "confirm" : kind === "bad" ? "reject" : "tick");
+}
+
 /* ---------- SRS ---------- */
 function weightedTake(arr, n, weight){
   const pool = arr.map(x => ({ x, w: Math.max(0.01, weight(x)) })), out = [];
@@ -662,11 +725,11 @@ function renderCard(v){
       <div class="progress"><span style="width:${(s.i/s.q.length)*100}%"></span></div>
       <div class="card ${anim}" id="card" role="button" tabindex="0" aria-label="${s.flipped?"Карточка":"Показать ответ"}">
         <div class="meta">${pips(w.lv[dir])}</div>
-        <div class="front">${esc(front)}</div>
+        <div class="front"><span>${esc(front)}</span>${dir === "en" && canSpeak() ? sayBtn(w.en) : ""}</div>
         <div class="body">
           ${showCtxFront ? `<div class="ctx">${highlight(w.context, w.en)}</div>` : ""}
           ${s.flipped ? `
-            <div class="answer">${esc(back)}</div>
+            <div class="answer${dir === "ru" && canSpeak() ? " with-say" : ""}"><span>${esc(back)}</span>${dir === "ru" && canSpeak() ? sayBtn(w.en) : ""}</div>
             ${w.note ? `<div class="note">${esc(w.note)}</div>` : ""}
             ${!showCtxFront && w.context ? `<div class="ctx">${highlight(w.context, w.en)}</div>` : ""}
             <div><span class="chip">${esc(setLabel(w.set))}</span></div>
@@ -679,12 +742,16 @@ function renderCard(v){
         <button class="g-good" data-g="good">Помню<small>${nextLabel(w,dir,"good")}</small></button>
       </div>` : `<button class="btn primary wide" id="show">Показать ответ</button>`}
     </div>`;
-  const flip = () => { if(!s.flipped){ s.flipped = true; s.anim = "anim-flip"; render(); } };
+  wireSay(v);
+  if(S.meta.ttsAuto && ((anim === "anim-next" && dir === "en") || (anim === "anim-flip" && dir === "ru"))) setTimeout(() => speak(w.en), anim === "anim-flip" ? 250 : 350);
+  const flip = () => { if(!s.flipped){ s.flipped = true; s.anim = "anim-flip"; feedback("flip"); render(); } };
   $("#card").onclick = flip;
   $("#card").onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); } };
   if($("#show")) $("#show").onclick = flip;
   v.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
-    grade(w, dir, b.dataset.g); s.res[b.dataset.g]++; s.i++; s.flipped = false; s.anim = "anim-next"; renderHeader(); render();
+    grade(w, dir, b.dataset.g); s.res[b.dataset.g]++; s.i++; s.flipped = false; s.anim = "anim-next";
+    feedback(s.i >= s.q.length ? "done" : b.dataset.g);
+    renderHeader(); render();
   });
   $("#quit").onclick = () => { S.session = null; S.animView = true; refresh(); };
 }
@@ -747,7 +814,7 @@ function openEdit(id){
     <h3>Карточка</h3>
     ${wordForm(w, "e-")}
     <div class="lvrow">EN→RU ${pips(w.lv.en)} &nbsp; RU→EN ${pips(w.lv.ru)} &nbsp; верно ${w.ok} · ошибок ${w.bad}</div>
-    ${S.sample ? `<button class="link" id="e-tr" style="justify-self:start">Перевести заново с Claude</button>` : ""}
+    <div class="row">${canSpeak() ? `<button class="link" id="e-say">Прослушать</button>` : ""}${S.sample ? `<button class="link" id="e-tr">Перевести заново с Claude</button>` : ""}</div>
     <div class="row"><button class="btn primary grow" id="e-save">Сохранить</button><button class="btn grow" id="e-cancel">Отмена</button></div>
     <div class="row" id="e-danger"><button class="link" id="e-reset">Сбросить прогресс слова</button><span style="flex:1"></span><button class="btn danger" id="e-del">Удалить</button></div>`,
   () => {
@@ -762,6 +829,7 @@ function openEdit(id){
       $("#e-del2").onclick = () => { removeWord(w.id); closeModal(); toast("Удалено"); };
     };
     if($("#e-tr")) $("#e-tr").onclick = () => quickTranslate("e-", $("#e-tr"));
+    if($("#e-say")) $("#e-say").onclick = () => speak($("#e-en").value);
   });
 }
 
@@ -968,6 +1036,24 @@ function viewMore(v){
       : `<p class="hint" style="margin:0">Этот браузер не умеет строить палитру из цвета. Обнови его, чтобы появился выбор цвета.</p>`}
     </div>
 
+    <h2>Звук и озвучка</h2>
+    <div class="panel">
+      ${canSpeak() ? `
+      <label class="toggle"><span>Озвучивать английское, когда оно появляется на карточке</span><input type="checkbox" id="m-tts" ${S.meta.ttsAuto ? "checked" : ""}></label>
+      <div class="row" style="justify-content:space-between">
+        <span>Акцент</span>
+        <div class="seg" role="group" aria-label="Акцент">
+          <button id="acc-us" aria-pressed="${(S.meta.accent || "en-US") === "en-US"}">US</button>
+          <button id="acc-gb" aria-pressed="${S.meta.accent === "en-GB"}">UK</button>
+        </div>
+      </div>
+      <button class="btn" id="m-say">Проверить голос</button>
+      <p class="hint" style="margin:0">${hasNativeSpeech() ? "Говорит системный движок озвучки Android. Голос и качество меняются в настройках телефона: Специальные возможности → Синтез речи. Туда можно поставить, например, нейронный Kokoro через VoxSherpa TTS." : "Говорит голос браузера и системы. Если звучит плохо, проверь, что в настройках телефона установлен английский голосовой пакет."}</p>`
+      : `<p class="hint" style="margin:0">Озвучка в этом браузере недоступна.</p>`}
+      <label class="toggle"><span>Звуки при ответах</span><input type="checkbox" id="m-sound" ${S.meta.sound !== false ? "checked" : ""}></label>
+      <label class="toggle"><span>Вибрация</span><input type="checkbox" id="m-hap" ${S.meta.haptics !== false ? "checked" : ""}></label>
+    </div>
+
     <h2>Настройки</h2>
     <div class="panel">
       <label class="f">Твой уровень английского (влияет на заметки от Claude)
@@ -1005,6 +1091,12 @@ function viewMore(v){
   });
   $("#m-level").onchange = e => { S.meta.level = e.target.value; persistMeta(); };
   $("#m-len").onchange = e => { S.meta.sessionLen = +e.target.value; persistMeta(); renderHeader(); };
+  if($("#m-tts")) $("#m-tts").onchange = e => { S.meta.ttsAuto = e.target.checked; persistMeta(); };
+  if($("#acc-us")) $("#acc-us").onclick = () => { S.meta.accent = "en-US"; persistMeta(); render(); speak("Hello! This is how I sound."); };
+  if($("#acc-gb")) $("#acc-gb").onclick = () => { S.meta.accent = "en-GB"; persistMeta(); render(); speak("Hello! This is how I sound."); };
+  if($("#m-say")) $("#m-say").onclick = () => speak("The quick brown fox jumps over the lazy dog.");
+  $("#m-sound").onchange = e => { S.meta.sound = e.target.checked; persistMeta(); if(e.target.checked) fx("good"); };
+  $("#m-hap").onchange = e => { S.meta.haptics = e.target.checked; persistMeta(); if(e.target.checked) haptic("confirm"); };
   $("#m-exp").onclick = exportJson;
   $("#m-imp").onclick = () => $("#m-file").click();
   $("#m-show").onclick = () => showJson();
@@ -1105,6 +1197,7 @@ window.addEventListener("hashchange", () => { const t = tabFromHash(); if(t && t
 applySeed(getSeed());
 document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
   if(S.tab === b.dataset.tab) return;
+  haptic("tick");
   S.tab = b.dataset.tab; S.animView = true; refresh(); window.scrollTo(0,0);
 });
 S.tab = tabFromHash() || S.tab;
