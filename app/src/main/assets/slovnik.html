@@ -457,7 +457,7 @@ async function connectCloud(){
     if(!S.uid){ try{ S.uid = await S.cloud.user.id(); }catch(e){} }
     if(!S.uid) return;
     S.db = S.cloud.db;
-    try{ await startSync(); mergeNativePending(); reportSnapshot(); }
+    try{ await startSync(); mergeNativePending(); reportSnapshot(); nativeCall("jsLog", "облако подключено: " + S.words.size + " слов"); }
     catch(e){
       S.db = null; S.mode = "local";
       if(!S.offlineToast){ S.offlineToast = true; toast("Нет связи с облаком. Работаю на этом устройстве и синхронизирую, когда появится сеть."); }
@@ -1247,7 +1247,9 @@ document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
 S.tab = tabFromHash() || S.tab;
 loadLocal();
 nativeCall("pageAlive");
-if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); }
+window.addEventListener("error", e => nativeCall("jsLog", "ошибка: " + e.message + " @" + e.lineno));
+window.addEventListener("unhandledrejection", e => nativeCall("jsLog", "промис: " + (e.reason && (e.reason.message || e.reason.code) || e.reason)));
+if(OFFLINE){ loadOfflineSnapshot(); S.mode = "offline"; S.capsReady = true; refresh(); nativeCall("jsLog", "офлайн-копия: " + S.words.size + " слов, копия словаря " + (S.noSnapshot ? "отсутствует" : "есть")); }
 else { refresh(); initCaps(); reportPage(); }
 })();
 </script>

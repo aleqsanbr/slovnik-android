@@ -1,6 +1,19 @@
 package app.slovnik;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.graphics.Typeface;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebResourceResponse;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -48,6 +61,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
+import java.util.Date;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.nio.charset.StandardCharsets;
 
 import java.util.Arrays;
@@ -90,6 +111,83 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private volatile boolean ttsOk = false;
     private final Object store = new Object();
+    private final ExecutorService bg = Executors.newSingleThreadExecutor();
+
+    /* ---------- in-app log (shake the phone to see it) ---------- */
+    private static final ArrayDeque<String> LOG = new ArrayDeque<>();
+    private static final SimpleDateFormat TS = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US);
+
+    static void log(String msg) {
+        Log.i("Slovnik", msg);
+        synchronized (LOG) {
+            LOG.addLast(TS.format(new Date()) + "  " + msg);
+            while (LOG.size() > 500) LOG.removeFirst();
+        }
+    }
+
+    private static String shortUrl(String u) {
+        if (u == null) return "null";
+        if (u.startsWith("data:")) return "data:…";
+        return u.length() > 110 ? u.substring(0, 110) + "…" : u;
+    }
+
+    private SensorManager sensors;
+    private long lastShake = 0, firstJolt = 0;
+    private AlertDialog logDialog;
+    private final SensorEventListener shake = new SensorEventListener() {
+        @Override public void onSensorChanged(SensorEvent e) {
+            float g = (float) Math.sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) / SensorManager.GRAVITY_EARTH;
+            if (g < 2.6f) return;
+            long now = System.currentTimeMillis();
+            if (now - lastShake < 2500) return;
+            if (firstJolt == 0 || now - firstJolt > 900) { firstJolt = now; return; }
+            firstJolt = 0; lastShake = now;
+            showLog();
+        }
+        @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+    };
+
+    private void showLog() {
+        if (logDialog != null && logDialog.isShowing()) return;
+        StringBuilder sb = new StringBuilder();
+        try {
+            sb.append("Словник ").append(getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
+        } catch (Exception ignored) { sb.append("Словник"); }
+        sb.append(" · Android ").append(Build.VERSION.RELEASE).append(" (SDK ").append(Build.VERSION.SDK_INT).append(")");
+        android.content.pm.PackageInfo wv = WebView.getCurrentWebViewPackage();
+        if (wv != null) sb.append(" · WebView ").append(wv.versionName);
+        sb.append("\nрежим: ").append(offline ? "офлайн" + (offlineFromAsset ? " (копия из APK)" : " (сохранённая копия)") : "онлайн")
+          .append(" · страница стартовала: ").append(alive ? "да" : "нет")
+          .append(" · сеть: ").append(networkInfo())
+          .append("\nкопия словаря: ").append(snapFile().length()).append(" Б · копия страницы: ").append(pageFile().length())
+          .append(" Б · URL: ").append(shortUrl(web.getUrl())).append("\n\n");
+        synchronized (LOG) { for (String l : LOG) sb.append(l).append('\n'); }
+        final String text = sb.toString();
+
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextIsSelectable(true);
+        tv.setTypeface(Typeface.MONOSPACE);
+        tv.setTextSize(11);
+        int pad = Math.round(16 * getResources().getDisplayMetrics().density);
+        tv.setPadding(pad, pad / 2, pad, pad / 2);
+        ScrollView sv = new ScrollView(this);
+        sv.addView(tv);
+        sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
+
+        logDialog = new AlertDialog.Builder(this)
+            .setTitle("Лог")
+            .setView(sv)
+            .setPositiveButton("Скопировать", (d, w) -> {
+                ClipboardManager cm = getSystemService(ClipboardManager.class);
+                if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Словник лог", text));
+                Toast.makeText(this, "Лог скопирован", Toast.LENGTH_SHORT).show();
+            })
+            .setNeutralButton("Офлайн-копия", (d, w) -> { log("лог: вручную → офлайн"); loadOffline(null); })
+            .setNegativeButton("Онлайн", (d, w) -> { log("лог: вручную → онлайн"); loadOnline(null); })
+            .create();
+        logDialog.show();
+    }
 
     /** Top of the artifact frame in CSS px (= height of claude.ai's bar above it), or -1 when not on the artifact. */
     static final String MEASURE_JS =
@@ -149,11 +247,10 @@ public class MainActivity extends Activity {
             else Toast.makeText(this, "Скачать файл отсюда нельзя. Используй «Показать JSON» и скопируй текст.", Toast.LENGTH_LONG).show();
         });
 
+        sensors = getSystemService(SensorManager.class);
+        log("запуск: " + (state == null ? "холодный" : "восстановление") + ", сеть: " + networkInfo());
         if (state != null && state.getBoolean("offline", false)) loadOffline(null);
-        else {
-            if (state != null) web.restoreState(state);
-            if (state == null || web.getUrl() == null) open(tabFrom(getIntent()));
-        }
+        else open(tabFrom(getIntent()));
     }
 
     private String urlFor(String tab) {
@@ -182,8 +279,35 @@ public class MainActivity extends Activity {
     /* ---------- online / offline ---------- */
 
     private void open(String tab) {
-        if (!isNetworkOk()) loadOffline(tab);
-        else loadOnline(tab);
+        if (!isNetworkOk()) { log("сети нет по данным Android → офлайн"); loadOffline(tab); return; }
+        loadOnline(tab);
+        probeClaude(ok -> {
+            log("проверка связи с claude.ai: " + (ok ? "есть" : "нет"));
+            if (!ok && !offline && !alive) loadOffline(tab);
+        });
+    }
+
+    /** Android may report a network (e.g. through a VPN) when there's no internet: ask claude.ai directly. */
+    private void probeClaude(Consumer<Boolean> done) {
+        bg.execute(() -> {
+            boolean ok = false;
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL("https://claude.ai/favicon.ico").openConnection();
+                c.setRequestMethod("HEAD");
+                c.setConnectTimeout(4000);
+                c.setReadTimeout(4000);
+                c.setInstanceFollowRedirects(false);
+                int code = c.getResponseCode();
+                ok = code > 0;
+            } catch (Exception e) {
+                log("проверка связи: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            } finally {
+                if (c != null) c.disconnect();
+            }
+            final boolean r = ok;
+            ui.post(() -> done.accept(r));
+        });
     }
 
     /**
@@ -195,14 +319,15 @@ public class MainActivity extends Activity {
         @Override public void run() {
             if (offline || alive || onAuthPage()) { checks = 0; return; }
             checks++;
-            if (!isNetworkOk() || checks >= 4) { checks = 0; loadOffline(null); return; }
+            log("сторож: страница не стартовала, проверка " + checks);
+            if (!isNetworkOk() || checks >= 4) { checks = 0; log("сторож → офлайн"); loadOffline(null); return; }
             ui.postDelayed(this, 5000);
         }
     };
 
     /** If the saved offline copy doesn't start, fall back to the copy bundled in the APK. */
     private final Runnable offlineWatch = () -> {
-        if (offline && !alive && !offlineFromAsset) loadOffline(null, true);
+        if (offline && !alive && !offlineFromAsset) { log("сохранённая копия не стартовала → копия из APK"); loadOffline(null, true); }
     };
 
     private void loadOnline(String tab) {
@@ -210,6 +335,7 @@ public class MainActivity extends Activity {
         alive = false;
         ui.removeCallbacks(offlineWatch);
         ui.removeCallbacks(onlineWatch);
+        log("открываю онлайн: " + urlFor(tab));
         web.loadUrl(urlFor(tab));
         ui.postDelayed(onlineWatch, 6000);
     }
@@ -235,12 +361,28 @@ public class MainActivity extends Activity {
                 return;
             }
         }
+        log("открываю офлайн: " + (offlineFromAsset ? "копия из APK" : "сохранённая копия") + ", " + page.length() + " символов; копия словаря " + snapFile().length() + " Б");
         String html = "<!doctype html><html><head><meta charset=\"utf-8\">"
             + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
             + "<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
             + "</head><body>" + page + "</body></html>";
         web.loadDataWithBaseURL(OFFLINE_BASE + (tab != null ? "#" + tab : ""), html, "text/html", "utf-8", null);
         if (!offlineFromAsset) ui.postDelayed(offlineWatch, 4000);
+    }
+
+    private String networkInfo() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        if (cm == null) return "?";
+        Network n = cm.getActiveNetwork();
+        if (n == null) return "нет";
+        NetworkCapabilities c = cm.getNetworkCapabilities(n);
+        if (c == null) return "есть, без данных";
+        StringBuilder b = new StringBuilder();
+        if (c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) b.append("wifi ");
+        if (c.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) b.append("мобильная ");
+        if (c.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) b.append("vpn ");
+        b.append(c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ? "подтверждена" : "не подтверждена");
+        return b.toString();
     }
 
     private boolean isNetworkOk() {
@@ -418,7 +560,10 @@ public class MainActivity extends Activity {
         public boolean isOffline() { return offline; }
 
         @JavascriptInterface
-        public void pageAlive() { alive = true; }
+        public void pageAlive() { alive = true; log("страница стартовала (" + (offline ? "офлайн" : "онлайн") + ")"); }
+
+        @JavascriptInterface
+        public void jsLog(String msg) { MainActivity.log("страница: " + msg); }
 
         /** Saves a text file to the phone's Downloads folder. */
         @JavascriptInterface
@@ -631,11 +776,23 @@ public class MainActivity extends Activity {
 
         @Override
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            log("ошибка загрузки" + (request.isForMainFrame() ? " (страница)" : "") + ": " + error.getErrorCode() + " " + error.getDescription() + " — " + shortUrl(request.getUrl().toString()));
             if (request.isForMainFrame() && !offline) ui.post(() -> loadOffline(tabFrom(getIntent())));
         }
 
         @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+            if (request.isForMainFrame()) log("HTTP " + response.getStatusCode() + " — " + shortUrl(request.getUrl().toString()));
+        }
+
+        @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            log("загрузка: " + shortUrl(url));
+        }
+
+        @Override
         public void onPageFinished(WebView view, String url) {
+            log("загружено: " + shortUrl(url));
             CookieManager.getInstance().flush();
         }
     }
@@ -649,6 +806,15 @@ public class MainActivity extends Activity {
     }
 
     class ChromeClient extends WebChromeClient {
+        @Override
+        public boolean onConsoleMessage(ConsoleMessage m) {
+            if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR || m.messageLevel() == ConsoleMessage.MessageLevel.WARNING) {
+                String src = m.sourceId() == null ? "" : m.sourceId();
+                log("консоль " + m.messageLevel().name().toLowerCase(Locale.ROOT) + ": " + m.message() + " (" + shortUrl(src) + ":" + m.lineNumber() + ")");
+            }
+            return false;
+        }
+
         @Override
         public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
             if (pendingFiles != null) pendingFiles.onReceiveValue(null);
@@ -714,7 +880,6 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putBoolean("offline", offline);
-        if (!offline) web.saveState(out);
     }
 
     @Override
@@ -722,7 +887,12 @@ public class MainActivity extends Activity {
         super.onResume();
         web.onResume();
         resumed = true;
-        if (offline && isNetworkOk()) loadOnline(null);
+        log("возврат в приложение, сеть: " + networkInfo());
+        if (offline && isNetworkOk()) probeClaude(ok -> { if (ok && offline) { log("связь вернулась → онлайн"); loadOnline(null); } });
+        if (sensors != null) {
+            Sensor acc = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            if (acc != null) sensors.registerListener(shake, acc, SensorManager.SENSOR_DELAY_UI);
+        }
         ui.removeCallbacks(sampler);
         ui.postDelayed(sampler, 150);
     }
@@ -730,6 +900,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         resumed = false;
+        if (sensors != null) sensors.unregisterListener(shake);
         ui.removeCallbacks(sampler);
         web.onPause();
         CookieManager.getInstance().flush();
@@ -740,6 +911,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
+        bg.shutdownNow();
         root.removeAllViews();
         web.destroy();
         super.onDestroy();
