@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -22,6 +24,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.3'
+
+      - name: Version
+        id: v
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION is already released: building only, no new release"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Signing key
         env:
@@ -36,16 +50,30 @@ jobs:
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename
-        run: cp app/build/outputs/apk/release/app-release.apk slovnik-${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk slovnik-${{ steps.v.outputs.version }}.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: slovnik-apk
-          path: slovnik-${{ github.run_number }}.apk
+          name: slovnik-${{ steps.v.outputs.version }}-build${{ github.run_number }}
+          path: slovnik-${{ steps.v.outputs.version }}.apk
+
+      - name: Release notes
+        if: steps.v.outputs.release == 'true'
+        run: |
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          RANGE=${PREV:+$PREV..HEAD}
+          {
+            echo "Изменения${PREV:+ с $PREV}:"
+            echo
+            git log $RANGE --no-merges --pretty='- %s' | grep -v '\[skip ci\]' || true
+          } > notes.md
+          cat notes.md
 
       - uses: softprops/action-gh-release@v2
+        if: steps.v.outputs.release == 'true'
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Словник 1.0.${{ github.run_number }}
-          files: slovnik-${{ github.run_number }}.apk
+          tag_name: v${{ steps.v.outputs.version }}
+          name: Словник ${{ steps.v.outputs.version }}
+          body_path: notes.md
+          files: slovnik-${{ steps.v.outputs.version }}.apk
           make_latest: true

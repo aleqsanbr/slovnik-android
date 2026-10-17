@@ -3,6 +3,8 @@ plugins {
 }
 
 def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+// Human version (semver) lives in /VERSION; versionCode is the CI run number, so every build installs over the previous one.
+def appVersion = rootProject.file('VERSION').text.trim()
 
 android {
     namespace 'app.slovnik'
@@ -13,7 +15,7 @@ android {
         minSdk 29
         targetSdk 34
         versionCode runNumber
-        versionName "1.0.${runNumber}"
+        versionName appVersion
     }
 
     signingConfigs {
