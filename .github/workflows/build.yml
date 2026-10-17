@@ -3,7 +3,6 @@ name: Build APK
 on:
   push:
     branches: [main]
-    paths-ignore: ['.github/workflows/cleanup-tags.yml']
   workflow_dispatch:
 
 permissions:
