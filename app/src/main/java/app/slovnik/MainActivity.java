@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     /** claude.ai paths needed to sign in; everything else on claude.ai counts as "outside the artifact". */
     static final String[] AUTH_PREFIXES = { "/login", "/logout", "/magic-link", "/verify", "/api/", "/sso", "/oauth", "/cdn-cgi/" };
     static final int FILE_REQUEST = 41;
-    static final long SAMPLE_EVERY_MS = 900;
+    static final long SAMPLE_EVERY_MS = 700;
 
     private WebView web;
     private FrameLayout root;
@@ -60,10 +60,22 @@ public class MainActivity extends Activity {
     private final ChromeClient chrome = new ChromeClient();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private int statusColor = 0, navColor = 0;
+    private int headerPx = 0;
+
+    /** Top of the artifact frame in CSS px (= height of claude.ai's bar above it), or -1 when not on the artifact. */
+    static final String MEASURE_JS =
+        "(function(){if(location.pathname.indexOf('/artifact/')!==0)return -1;" +
+        "var f=document.querySelectorAll('iframe'),b=null,ba=0;" +
+        "for(var i=0;i<f.length;i++){var r=f[i].getBoundingClientRect(),a=r.width*r.height;if(a>ba){ba=a;b=r;}}" +
+        "if(!b||ba<40000)return -1;" +
+        "var d=document.querySelectorAll('[role=dialog],[role=alertdialog]');" +
+        "for(var j=0;j<d.length;j++){var q=d[j].getBoundingClientRect();if(q.width>0&&q.height>0)return -1;}" +
+        "return b.top;})()";
     private boolean resumed = false;
 
     private final Runnable sampler = new Runnable() {
         @Override public void run() {
+            measureHeader();
             sampleBars();
             if (resumed) ui.postDelayed(this, SAMPLE_EVERY_MS);
         }
@@ -76,6 +88,7 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyHeaderShift());
 
         int bg = defaultBackground();
         root.setBackgroundColor(bg);
@@ -130,6 +143,29 @@ public class MainActivity extends Activity {
         if (tab == null) return;
         String target = JSONObject.quote(urlFor(tab));
         web.evaluateJavascript("(function(){location.replace(" + target + ");location.reload();})()", null);
+    }
+
+    /* ---------- hide claude.ai's bar: push the WebView up by its height ---------- */
+
+    private void measureHeader() {
+        if (customView != null) return;
+        web.evaluateJavascript(MEASURE_JS, value -> {
+            int px = 0;
+            try {
+                float css = Float.parseFloat(value);
+                if (css > 0 && css < 200) px = Math.round(css * getResources().getDisplayMetrics().density);
+            } catch (NumberFormatException | NullPointerException ignored) { }
+            if (Math.abs(px - headerPx) > 1) { headerPx = px; applyHeaderShift(); }
+        });
+    }
+
+    private void applyHeaderShift() {
+        int h = root.getHeight();
+        if (h == 0) return;
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
+        int want = headerPx > 0 ? h + headerPx : FrameLayout.LayoutParams.MATCH_PARENT;
+        if (lp.height != want) { lp.height = want; web.setLayoutParams(lp); }
+        web.setTranslationY(-headerPx);
     }
 
     /* ---------- system bars: follow the colours the page draws ---------- */
@@ -390,7 +426,7 @@ public class MainActivity extends Activity {
         web.onResume();
         resumed = true;
         ui.removeCallbacks(sampler);
-        ui.postDelayed(sampler, 300);
+        ui.postDelayed(sampler, 150);
     }
 
     @Override
