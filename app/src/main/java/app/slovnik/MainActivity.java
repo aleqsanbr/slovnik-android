@@ -128,6 +128,7 @@ public class MainActivity extends Activity {
     private boolean offlineFromAsset = false;
     private TextToSpeech tts;
     private volatile boolean ttsOk = false;
+    private TtsCache ttsCache;
     /** Same lock the reminders use, so a grade from a notification never collides with the page. */
     private final Object store = Store.LOCK;
     private final ExecutorService bg = Executors.newSingleThreadExecutor();
@@ -347,7 +348,8 @@ public class MainActivity extends Activity {
           .append(" · страница стартовала: ").append(alive ? "да" : "нет")
           .append(" · сеть: ").append(networkInfo())
           .append("\nкопия словаря: ").append(snapFile().length()).append(" Б · копия страницы: ").append(pageFile().length())
-          .append(" Б · URL: ").append(shortUrl(web.getUrl())).append("\n\n");
+          .append(" Б · URL: ").append(shortUrl(web.getUrl()))
+          .append("\nкэш озвучки: ").append(ttsCache.info()).append("\n\n");
         synchronized (LOG) { for (String l : LOG) sb.append(l).append('\n'); }
         final String text = sb.toString();
 
@@ -385,7 +387,8 @@ public class MainActivity extends Activity {
             "Тест: защита серии",
             "Тест: слова без перевода",
             "Тест: все уведомления сразу",
-            "Показать расписание напоминаний"
+            "Показать расписание напоминаний",
+            "Очистить кэш озвучки"
         };
         new AlertDialog.Builder(this).setTitle("Действия").setItems(items, (d, which) -> {
             switch (which) {
@@ -404,6 +407,10 @@ public class MainActivity extends Activity {
                 case 7:
                     Notifications.scheduleAll(this);
                     showLog();
+                    break;
+                case 8:
+                    ttsCache.clear();
+                    Toast.makeText(this, "Кэш озвучки очищен", Toast.LENGTH_SHORT).show();
                     break;
                 default: break;
             }
@@ -494,7 +501,12 @@ public class MainActivity extends Activity {
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, true);
 
-        tts = new TextToSpeech(this, status -> ttsOk = status == TextToSpeech.SUCCESS);
+        ttsCache = new TtsCache(getFilesDir(), ui, bg);
+        tts = new TextToSpeech(this, status -> {
+            ttsOk = status == TextToSpeech.SUCCESS;
+            if (ttsOk) ui.post(() -> { if (tts != null) ttsCache.attach(tts); });
+            log("движок озвучки: " + (ttsOk ? "готов" : "ошибка " + status));
+        });
         web.addJavascriptInterface(new Bridge(), "SlovnikNative");
         web.setWebViewClient(new Client());
         web.setWebChromeClient(chrome);
@@ -889,17 +901,33 @@ public class MainActivity extends Activity {
                     Toast.makeText(MainActivity.this, "Озвучка ещё не готова или не настроена в системе", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                Locale loc = "en-GB".equals(lang) ? Locale.UK : Locale.US;
-                int r = tts.setLanguage(loc);
-                if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) tts.setLanguage(Locale.ENGLISH);
-                tts.speak(t, TextToSpeech.QUEUE_FLUSH, null, "slovnik");
+                ttsCache.speak(t, lang);
             });
         }
 
         @JavascriptInterface
         public void stopSpeaking() {
-            runOnUiThread(() -> { if (tts != null) tts.stop(); });
+            runOnUiThread(() -> ttsCache.stop());
         }
+
+        /** Renders these phrases to the speech cache ahead of time (JSON array of strings). */
+        @JavascriptInterface
+        public void ttsPrefetch(String json, String lang) {
+            String[] texts;
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(json);
+                int n = Math.min(a.length(), 80);
+                texts = new String[n];
+                for (int i = 0; i < n; i++) texts[i] = a.optString(i, null);
+            } catch (Exception e) { return; }
+            runOnUiThread(() -> { if (ttsOk) ttsCache.prefetch(texts, lang); });
+        }
+
+        @JavascriptInterface
+        public String ttsCacheInfo() { return ttsCache.info(); }
+
+        @JavascriptInterface
+        public void ttsCacheClear() { runOnUiThread(() -> ttsCache.clear()); }
 
         /** System haptic feedback; respects the phone's "touch feedback" setting. */
         @JavascriptInterface
@@ -1196,6 +1224,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
+        if (ttsCache != null) ttsCache.release();
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         bg.shutdownNow();
         root.removeAllViews();
