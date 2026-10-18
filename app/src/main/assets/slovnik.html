@@ -529,7 +529,8 @@ function speak(text){
   try{
     const ss = window.speechSynthesis; if(!ss) return;
     ss.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.95;
+    // a bare word without closing punctuation makes some voices trail off into a hiss
+    const u = new SpeechSynthesisUtterance(/[.!?…;:]$/.test(text) ? text : text + "."); u.lang = lang; u.rate = 0.95;
     const vs = ss.getVoices();
     const v = vs.find(x => x.lang === lang || x.lang === lang.replace("-", "_")) || vs.find(x => (x.lang || "").toLowerCase().startsWith("en"));
     if(v) u.voice = v;

@@ -32,6 +32,8 @@ import java.util.concurrent.ExecutorService;
 final class TtsCache {
     static final long MAX_BYTES = 150L * 1024 * 1024;
     static final int MIN_FILE = 1000;   // anything smaller is a failed render
+    /** Bump when the way phrases are rendered changes: old recordings are wiped once. */
+    static final String CACHE_VERSION = "2";
 
     private static final class Item {
         final String key, text, lang;
@@ -62,6 +64,13 @@ final class TtsCache {
             if (!dir.exists() && !dir.mkdirs()) return;
             File[] parts = dir.listFiles((d, n) -> n.endsWith(".part"));
             if (parts != null) for (File f : parts) f.delete();
+            File mark = new File(dir, "version");
+            if (!CACHE_VERSION.equals(Store.read(mark).trim())) {
+                File[] old = dir.listFiles((d, n) -> n.endsWith(".wav"));
+                if (old != null) for (File f : old) f.delete();
+                Store.write(mark, CACHE_VERSION);
+                if (old != null && old.length > 0) MainActivity.log("кэш озвучки обновлён до версии " + CACHE_VERSION + ": удалено " + old.length + " старых записей");
+            }
         });
     }
 
@@ -92,7 +101,7 @@ final class TtsCache {
         String voice = "";
         try { Voice v = tts.getVoice(); if (v != null) voice = v.getName(); } catch (Exception ignored) { }
         String engine = tts.getDefaultEngine();
-        String raw = engine + "|" + voice + "|" + lang + "|" + text.trim();
+        String raw = CACHE_VERSION + "|" + engine + "|" + voice + "|" + lang + "|" + text.trim();
         try {
             byte[] h = MessageDigest.getInstance("SHA-1").digest(raw.getBytes(StandardCharsets.UTF_8));
             StringBuilder b = new StringBuilder();
@@ -104,6 +113,17 @@ final class TtsCache {
     }
 
     private File file(String key) { return new File(dir, key + ".wav"); }
+
+    /**
+     * What the engine actually gets: neural voices like Kokoro trail off into a hiss ("s"/"th") when a phrase
+     * has no closing punctuation, so a bare word or phrase gets a full stop.
+     */
+    static String speakable(String text) {
+        String t = text.trim();
+        if (t.isEmpty()) return t;
+        char last = t.charAt(t.length() - 1);
+        return ".!?…;:".indexOf(last) >= 0 ? t : t + ".";
+    }
 
     private boolean cached(String key) { return file(key).length() > MIN_FILE; }
 
@@ -128,7 +148,7 @@ final class TtsCache {
         removeQueued(k);
         requeueFront(new Item(k, text, lang));
         liveId = "live:" + (++seq);
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, liveId);
+        tts.speak(speakable(text), TextToSpeech.QUEUE_FLUSH, null, liveId);
         MainActivity.log("озвучка движком, сохраню в кэш: «" + clip(text) + "»");
     }
 
@@ -210,7 +230,7 @@ final class TtsCache {
             setLang(it.lang);
             busyId = "file:" + it.key + ":" + (++seq);
             File part = new File(dir, it.key + "." + seq + ".part");
-            int r = tts.synthesizeToFile(it.text, new Bundle(), part, busyId);
+            int r = tts.synthesizeToFile(speakable(it.text), new Bundle(), part, busyId);
             if (r == TextToSpeech.SUCCESS) { busy = it; return; }
             busyId = null;
             jobFinished(it.key, false);
