@@ -1258,14 +1258,11 @@ function viewMore(v){
       <div id="m-reset"><button class="btn danger wide" id="m-reset-btn">Сбросить всё</button></div>
     </div>
 
-    <h2>Как приложение на телефоне</h2>
+    ${NATIVE ? "" : `<h2>Приложение для Android</h2>
     <div class="panel">
-      <ol class="steps">
-        <li>Открой ссылку в браузере телефона, будучи залогиненным в Claude, и добавь её на главный экран через меню браузера.</li>
-        <li>Для быстрого добавления слов сделай второй ярлык: та же ссылка, но с <b>#add</b> в конце. Он откроется сразу на вкладке «Добавить». Есть ещё <b>#review</b> и <b>#words</b>.</li>
-      </ol>
-      ${NATIVE ? `<p style="margin:0"><span class="chip">${OFFLINE ? "Офлайн-копия в приложении «Словник»" : "Открыто в приложении «Словник», связь с ним есть"}</span></p>` : ""}
-      <p class="hint" style="margin:0">Во время повторения экран не гаснет. Если связь пропадёт, изменения сохранятся на устройстве и отправятся сами. Нужен интернет: слова хранятся в облаке Claude и синхронизируются между устройствами.</p>
+      <p style="margin:0">«Словник» можно поставить как приложение: работает без интернета, присылает напоминания с карточками, есть виджет на рабочий стол и быстрая озвучка.</p>
+      <a class="btn" href="https://github.com/aleqsanbr/slovnik-android/releases/latest" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Скачать APK</a>
+    </div>`}
     </div>`;
   $("#m-sets").onclick = openSets;
   v.querySelectorAll("[data-seed]").forEach(b => b.onclick = () => {
