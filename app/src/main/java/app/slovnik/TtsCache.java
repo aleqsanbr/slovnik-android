@@ -50,6 +50,10 @@ final class TtsCache {
     private int seq = 0;
     private MediaPlayer player;
 
+    // "voice all words" job: keys still to render, and counters for the progress shown on the page
+    private final Set<String> jobKeys = new HashSet<>();
+    private int jobTotal = 0, jobDone = 0, jobFailed = 0;
+
     TtsCache(File filesDir, Handler ui, ExecutorService bg) {
         this.dir = new File(filesDir, "tts");
         this.ui = ui;
@@ -138,22 +142,51 @@ final class TtsCache {
     }
 
     /** Render these phrases ahead of time (e.g. all words of a review session). */
-    void prefetch(String[] texts, String lang) {
+    void prefetch(String[] texts, String lang) { prefetch(texts, lang, false); }
+
+    /**
+     * Render phrases ahead of time. With {@code job} the missing ones also count towards the
+     * "voice all words" progress ({@link #progress()}).
+     */
+    void prefetch(String[] texts, String lang, boolean job) {
         if (tts == null || texts == null) return;
         setLang(lang);
+        if (job && jobKeys.isEmpty()) { jobTotal = 0; jobDone = 0; jobFailed = 0; }
         int added = 0;
         for (String t : texts) {
             if (t == null) continue;
             String s = t.trim();
             if (s.isEmpty() || s.length() > 200) continue;
             String k = key(s, lang);
-            if (cached(k) || queued.contains(k) || (busy != null && busy.key.equals(k))) continue;
+            if (cached(k)) continue;
+            if (job && jobKeys.add(k)) jobTotal++;
+            if (queued.contains(k) || (busy != null && busy.key.equals(k))) continue;
             queue.addLast(new Item(k, s, lang));
             queued.add(k);
             added++;
         }
-        if (added > 0) MainActivity.log("озвучка: заранее готовлю " + added);
+        if (added > 0) MainActivity.log("озвучка: " + (job ? "озвучиваю все слова, недостающих " + jobKeys.size() : "заранее готовлю " + added));
         pump();
+    }
+
+    /** {"total":T,"done":D,"failed":F,"active":true|false} for the "voice all words" job. */
+    String progress() {
+        return "{\"total\":" + jobTotal + ",\"done\":" + jobDone + ",\"failed\":" + jobFailed + ",\"active\":" + !jobKeys.isEmpty() + "}";
+    }
+
+    /** Stop the "voice all words" job; phrases already rendered stay in the cache. */
+    void cancelJob() {
+        if (jobKeys.isEmpty()) return;
+        queue.removeIf(i -> jobKeys.contains(i.key) && queued.remove(i.key));
+        MainActivity.log("озвучка всех слов остановлена: готово " + jobDone + " из " + jobTotal);
+        jobTotal = jobDone + jobFailed;
+        jobKeys.clear();
+    }
+
+    private void jobFinished(String key, boolean ok) {
+        if (!jobKeys.remove(key)) return;
+        if (ok) jobDone++; else jobFailed++;
+        if (jobKeys.isEmpty()) MainActivity.log("озвучка всех слов готова: " + jobDone + " из " + jobTotal + (jobFailed > 0 ? ", не вышло " + jobFailed : ""));
     }
 
     private void requeueFront(Item it) {
@@ -173,13 +206,14 @@ final class TtsCache {
         while (!queue.isEmpty()) {
             Item it = queue.pollFirst();
             queued.remove(it.key);
-            if (cached(it.key)) continue;
+            if (cached(it.key)) { jobFinished(it.key, true); continue; }
             setLang(it.lang);
             busyId = "file:" + it.key + ":" + (++seq);
             File part = new File(dir, it.key + "." + seq + ".part");
             int r = tts.synthesizeToFile(it.text, new Bundle(), part, busyId);
             if (r == TextToSpeech.SUCCESS) { busy = it; return; }
             busyId = null;
+            jobFinished(it.key, false);
         }
     }
 
@@ -194,12 +228,15 @@ final class TtsCache {
         String[] p = id.split(":");
         if (p.length < 3) return;
         File part = new File(dir, p[1] + "." + p[2] + ".part");
-        if (ok && part.length() > MIN_FILE) {
-            if (part.renameTo(file(p[1]))) trimLater();
+        boolean current = id.equals(busyId);
+        if (ok && part.length() > MIN_FILE && part.renameTo(file(p[1]))) {
+            trimLater();
+            jobFinished(p[1], true);
         } else {
             part.delete();
+            if (current) jobFinished(p[1], false);
         }
-        if (id.equals(busyId)) { busy = null; busyId = null; }
+        if (current) { busy = null; busyId = null; }
         pump();
     }
 
@@ -261,6 +298,8 @@ final class TtsCache {
         stop();
         queue.clear();
         queued.clear();
+        jobKeys.clear();
+        jobTotal = 0; jobDone = 0; jobFailed = 0;
         bg.execute(() -> {
             File[] fs = dir.listFiles();
             int n = 0;

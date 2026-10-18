@@ -923,6 +923,32 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> { if (ttsOk) ttsCache.prefetch(texts, lang); });
         }
 
+        /** "Voice all words": renders every missing phrase (JSON array) and tracks progress. */
+        @JavascriptInterface
+        public void ttsPrefetchAll(String json, String lang) {
+            String[] texts;
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(json);
+                int n = Math.min(a.length(), 5000);
+                texts = new String[n];
+                for (int i = 0; i < n; i++) texts[i] = a.optString(i, null);
+            } catch (Exception e) { return; }
+            runOnUiThread(() -> { if (ttsOk) ttsCache.prefetch(texts, lang, true); });
+        }
+
+        /** {"total","done","failed","active"} of the "voice all words" job. */
+        @JavascriptInterface
+        public String ttsProgress() {
+            final String[] out = { "{\"total\":0,\"done\":0,\"failed\":0,\"active\":false}" };
+            final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+            runOnUiThread(() -> { out[0] = ttsCache.progress(); latch.countDown(); });
+            try { latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (InterruptedException ignored) { }
+            return out[0];
+        }
+
+        @JavascriptInterface
+        public void ttsPrefetchCancel() { runOnUiThread(() -> ttsCache.cancelJob()); }
+
         @JavascriptInterface
         public String ttsCacheInfo() { return ttsCache.info(); }
 

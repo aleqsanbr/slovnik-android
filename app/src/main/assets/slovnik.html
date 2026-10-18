@@ -548,6 +548,47 @@ function ttsCacheText(){
   const mb = info.bytes / 1048576;
   return info.files ? plural(info.files, "фраза", "фразы", "фраз") + " · " + (mb < 10 ? mb.toFixed(1) : Math.round(mb)).toString().replace(".", ",") + " МБ" : "пусто";
 }
+/* "voice all words": the app renders every missing phrase; the page polls its progress */
+const canVoiceAll = () => !!(NATIVE && typeof NATIVE.ttsPrefetchAll === "function" && typeof NATIVE.ttsProgress === "function");
+function ttsProgress(){ try{ return JSON.parse(nativeCall("ttsProgress") || "null"); }catch(e){ return null; } }
+function voiceAllBlock(){
+  const p = ttsProgress() || { total: 0, done: 0, failed: 0, active: false };
+  const pct = p.total ? Math.round((p.done + p.failed) / p.total * 100) : 0;
+  return `<div id="va" style="display:grid;gap:8px">
+    ${p.active ? `<div class="progress"><span style="width:${pct}%"></span></div>
+      <div class="row" style="justify-content:space-between"><span class="hint">Озвучено ${p.done} из ${p.total}${p.failed ? " · не вышло " + p.failed : ""}</span><button class="link" id="va-stop">Остановить</button></div>`
+    : `<button class="btn" id="va-start">Озвучить все слова</button>`}
+  </div>`;
+}
+function wireVoiceAll(){
+  const start = $("#va-start"), stop = $("#va-stop");
+  if(start) start.onclick = () => {
+    const texts = [...new Set([...S.words.values()].map(w => (w.en || "").trim()).filter(Boolean))];
+    if(!texts.length){ toast("В словаре пока нет слов."); return; }
+    S.vaStarted = Date.now();
+    nativeCall("ttsPrefetchAll", JSON.stringify(texts), S.meta.accent || "en-US");
+    start.disabled = true; start.textContent = "Готовлю список…";
+    pollVoiceAll();
+  };
+  if(stop) stop.onclick = () => { nativeCall("ttsPrefetchCancel"); setTimeout(pollVoiceAll, 300); };
+}
+function pollVoiceAll(){
+  clearTimeout(pollVoiceAll.t);
+  const el = $("#va");
+  if(!el) return;                       // left the settings tab: resumes when it's opened again
+  const p = ttsProgress();
+  if(!p) return;
+  const fresh = S.vaStarted && Date.now() - S.vaStarted < 1500;
+  if(!p.active && fresh && !p.total){ pollVoiceAll.t = setTimeout(pollVoiceAll, 400); return; }
+  el.outerHTML = voiceAllBlock(); wireVoiceAll();
+  const c = $("#tts-cache"); if(c) c.textContent = ttsCacheText() || "пусто";
+  if(p.active){ pollVoiceAll.t = setTimeout(pollVoiceAll, 700); return; }
+  if(S.vaStarted){
+    S.vaStarted = 0;
+    if(!p.total) toast("Все слова уже озвучены");
+    else { toast(p.failed ? "Готово: " + p.done + " из " + p.total + ", не вышло " + p.failed : "Все слова озвучены: " + p.done); feedback("done"); }
+  }
+}
 function wireSay(root){
   root.querySelectorAll("[data-say]").forEach(b => b.onclick = e => { e.stopPropagation(); haptic("tick"); speak(b.dataset.say); });
 }
@@ -1173,6 +1214,7 @@ function viewMore(v){
       </div>
       <button class="btn" id="m-say">Проверить голос</button>
       ${ttsCacheText() !== null ? `<div class="row" style="justify-content:space-between"><span>Кэш озвучки: <span id="tts-cache">${ttsCacheText()}</span></span><button class="link" id="tts-clear">Очистить</button></div>` : ""}
+      ${canVoiceAll() ? voiceAllBlock() : ""}
       <p class="hint" style="margin:0">${hasNativeSpeech() ? "Говорит системный движок озвучки Android. Голос и качество меняются в настройках телефона: Специальные возможности → Синтез речи. Туда можно поставить, например, нейронный Kokoro через VoxSherpa TTS. Сказанные фразы сохраняются на телефоне и дальше звучат мгновенно, а слова подхода готовятся заранее." : "Говорит голос браузера и системы. Если звучит плохо, проверь, что в настройках телефона установлен английский голосовой пакет."}</p>`
       : `<p class="hint" style="margin:0">Озвучка в этом браузере недоступна.</p>`}
       <label class="toggle"><span>Звуки при ответах</span><input type="checkbox" id="m-sound" ${S.meta.sound !== false ? "checked" : ""}></label>
@@ -1236,6 +1278,7 @@ function viewMore(v){
   if($("#acc-us")) $("#acc-us").onclick = () => { S.meta.accent = "en-US"; persistMeta(); render(); speak("Hello! This is how I sound."); };
   if($("#acc-gb")) $("#acc-gb").onclick = () => { S.meta.accent = "en-GB"; persistMeta(); render(); speak("Hello! This is how I sound."); };
   if($("#m-say")) $("#m-say").onclick = () => speak("The quick brown fox jumps over the lazy dog.");
+  if(canVoiceAll()){ wireVoiceAll(); const p = ttsProgress(); if(p && p.active) pollVoiceAll(); }
   if($("#tts-clear")) $("#tts-clear").onclick = () => {
     nativeCall("ttsCacheClear"); toast("Кэш озвучки очищен");
     setTimeout(() => { const el = $("#tts-cache"); if(el) el.textContent = ttsCacheText() || "пусто"; }, 600);
