@@ -223,9 +223,10 @@ SharedPreferences:
 - Подпись: ключ берётся из секрета **`KEYSTORE_B64`** (base64 файла `release.jks`), алиас `slovnik`, пароли в `app/build.gradle`. Сам ключ в репозиторий **не коммитить никогда** (`keystore/` и `*.jks` в `.gitignore`; когда-то ключ уже вычищали из истории). Смена ключа заставит пользователя переустановить приложение и заново войти в Claude — это MAJOR и только по согласованию.
 - Локально: Android SDK + Gradle 8.9+, ключ в `keystore/release.jks`, команда `gradle assembleRelease`.
 - Если в окружении агента нет Android SDK (dl.google.com и maven.google.com часто закрыты), собрать локально нельзя. Тогда:
-  - проверяй XML (`python3 -c "import xml.dom.minidom …"`) и баланс скобок в Java;
+  - **компилируй Java против настоящего `android.jar`**: его можно взять с GitHub (`curl -L -o android-34.jar https://raw.githubusercontent.com/Sable/android-platforms/master/android-34/android.jar`), сгенерировать минимальный `R.java` из ссылок `R.<тип>.<имя>` в коде и выполнить `javac -source 17 -target 17 -cp android-34.jar -d out R.java app/src/main/java/app/slovnik/*.java`. Это ловит почти все ошибки, на которых падает CI (так нашлась перекрытая локальной переменной `bg` ссылка на поле в `onCreate`);
+  - проверяй XML (`python3 -c "import xml.dom.minidom …"`);
   - пользуйся только API, доступными на `minSdk 29`, остальное оборачивай в `Build.VERSION.SDK_INT >= …`;
-  - первая настоящая проверка — сборка в CI; результат виден по появлению тега/релиза, а логи CI агенту обычно недоступны: если тега нет, сборка упала, и нужен лог из вкладки Actions от владельца.
+  - результат CI виден по появлению тега/релиза. Статус запусков и длительность шагов отдаёт публичный API (`api.github.com/repos/aleqsanbr/slovnik-android/actions/runs`), а сами логи — нет (хранилище логов из окружения агента обычно закрыто). Если сборка упала, сначала скомпилируй локально, как описано выше; если не воспроизводится, попроси лог из вкладки Actions у владельца.
 - Страницу удобно проверять в headless Chromium (Playwright), подставив заглушку `window.SlovnikNative` с нужными методами: так проверялись офлайн-режим, перемещение слов, экспорт, напоминания и серия.
 
 ## 10. Соглашения

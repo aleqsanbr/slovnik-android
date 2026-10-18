@@ -501,7 +501,7 @@ public class MainActivity extends Activity {
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, true);
 
-        ttsCache = new TtsCache(getFilesDir(), ui, bg);
+        ttsCache = new TtsCache(getFilesDir(), ui, this.bg);   // "bg" here is the local background colour
         tts = new TextToSpeech(this, status -> {
             ttsOk = status == TextToSpeech.SUCCESS;
             if (ttsOk) ui.post(() -> { if (tts != null) ttsCache.attach(tts); });
